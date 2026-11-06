@@ -212,6 +212,18 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
     // TMDB genre. Database-backed libraries only; declared, like the quality
     // rows, only when picked as a Home row or used by a folder.
     if (!require('../library/engine.ts').isIndexed()) return;
+    // New Releases (library/new-releases.ts): released or last aired in the
+    // last 12 months. Needs the stored TMDB dates, so database-backed only.
+    for (const prefix of groups) {
+      const id = `${prefix}-${type}-new`;
+      const picked = selectedHomeCatalogs.has(id);
+      if (!picked && !qualityWanted.has(id)) continue;
+      const tag = separate && groups.length > 1 ? ` [${providers.PROVIDER_META[providers.providerByCat(prefix)].short}]` : '';
+      const name = type === 'movies' ? '🎬 New Movies' : '📺 New & Returning Shows';
+      const row: LooseConfig = { id, type: type === 'movies' ? 'movie' : 'series', name: name + tag, extra: CAT_EXTRA };
+      if (integration === 'nuvio' && !picked) row.showInHome = false;
+      catalogs.push(row);
+    }
     const genres = require('../library/genres.ts');
     for (const prefix of groups) {
       for (const genre of genres.genresFor(type)) {

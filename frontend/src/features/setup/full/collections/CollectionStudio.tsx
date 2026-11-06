@@ -113,7 +113,7 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
   function addPack(pack: CuratedPack, excluded: ReadonlySet<string>) {
     const next = addPackFolders(collections, pack, { region, hasMdblistKey, excluded, aliases });
     // LeLibrary Special is the whole LeLibrary set: it brings the Hub (My
-    // Movies, My Shows, 4K, HDR, Genres) and the Movie Collections with it.
+    // Movies, My Shows, New Releases, 4K, HDR, Genres) and the Movie Collections with it.
     // Removing Special leaves them: they stay their own cards.
     if (pack.id === SPECIAL_PACK_ID) {
       const extra = specialExtras({

@@ -273,7 +273,7 @@ export function sizeMeter(collections: CollectionDoc[], aliases: Record<string, 
 }
 
 // LeLibrary Special is the whole LeLibrary set: adding it also brings the Hub
-// (My Movies, My Shows, 4K, HDR, Genres) and turns on the owned Movie
+// (My Movies, My Shows, New Releases, 4K, HDR, Genres) and turns on the owned Movie
 // Collections. Pure, so the studio and the tests share it.
 export const SPECIAL_PACK_ID = 'lelibrary-special';
 

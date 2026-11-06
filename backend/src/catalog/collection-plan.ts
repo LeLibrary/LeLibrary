@@ -163,6 +163,10 @@ const HUB_FOLDER_ART: Record<string, { coverImageUrl: string; focusGifUrl: strin
     coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-shows-v3.jpg',
     focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-shows-focus-v3.gif',
   },
+  'folder-lelibrary-hub-new': {
+    coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-new-v3.jpg',
+    focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-new-focus-v3.gif',
+  },
   'folder-lelibrary-hub-4k': {
     coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-4k-v3.jpg',
     focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-4k-focus-v3.gif',
@@ -177,12 +181,15 @@ const HUB_FOLDER_ART: Record<string, { coverImageUrl: string; focusGifUrl: strin
   },
 };
 
-// The Hub's 4K and HDR & Dolby Vision folders (My Movies + My Shows narrowed
-// to that quality, library/quality-filter.ts). Hubs saved before they existed
-// get them here, on the same provider prefix as their Movies folder, so an
-// old setup picks them up on its next push without being edited.
+// The Hub's New Releases, 4K and HDR & Dolby Vision folders (My Movies + My
+// Shows narrowed to recent releases or to one quality,
+// library/quality-filter.ts). Hubs saved before they existed get them here,
+// on the same provider prefix as their Movies folder, so an old setup picks
+// them up on its next push without being edited. Listed in Hub order.
 const HUB_ID = 'collection-lelibrary-hub';
+const HUB_ORDER = ['folder-lelibrary-hub-movies', 'folder-lelibrary-hub-shows'];
 const HUB_EXTRAS = [
+  { id: 'folder-lelibrary-hub-new', title: 'New Releases', variant: 'new' },
   { id: 'folder-lelibrary-hub-4k', title: '4K', variant: '4k' },
   { id: 'folder-lelibrary-hub-hdr', title: 'HDR & Dolby Vision', variant: 'hdr' },
   // Saved as two genre-less sources; a push turns them into one tab per genre
@@ -191,6 +198,7 @@ const HUB_EXTRAS = [
   { id: 'folder-lelibrary-hub-genres', title: 'Genres', variant: 'genres' },
 ];
 const HUB_GENRES_ID = 'folder-lelibrary-hub-genres';
+const HUB_NEW_ID = 'folder-lelibrary-hub-new';
 // A genre gets a tab once the library owns this many of its titles; a small
 // library falls back to a lower bar so the folder is not empty for it.
 const GENRE_TAB_MIN = 10;
@@ -232,24 +240,50 @@ function withHubExtras(collection) {
   const prefix = (sourceId.match(/^([a-z]+)-movies$/) || [])[1];
   if (!prefix) return collection;
   const have = new Set(collection.folders.map((folder) => folder?.id));
-  const extras = HUB_EXTRAS.filter((extra) => !have.has(extra.id)).map((extra) => ({
-    id: extra.id,
-    title: extra.title,
-    tileShape: movies.tileShape || 'LANDSCAPE',
-    hideTitle: false,
-    focusGifEnabled: true,
-    catalogSources: [
-      { addonId: '', addonUrl: '', catalogId: `${prefix}-movies-${extra.variant}`, type: 'movie', genre: '' },
-      { addonId: '', addonUrl: '', catalogId: `${prefix}-series-${extra.variant}`, type: 'series', genre: '' },
-    ],
-  }));
-  return extras.length ? { ...collection, folders: [...collection.folders, ...extras] } : collection;
+  if (HUB_EXTRAS.every((extra) => have.has(extra.id))) return collection;
+  const folders = [...collection.folders];
+  const order = [...HUB_ORDER, ...HUB_EXTRAS.map((extra) => extra.id)];
+  for (const extra of HUB_EXTRAS) {
+    if (have.has(extra.id)) continue;
+    const art = HUB_FOLDER_ART[extra.id];
+    const folder = {
+      id: extra.id,
+      title: extra.title,
+      tileShape: movies.tileShape || 'LANDSCAPE',
+      hideTitle: false,
+      focusGifEnabled: true,
+      // Like Movies and Shows: the folder's own cover is its backdrop.
+      ...(art ? { heroBackdropUrl: art.coverImageUrl } : {}),
+      catalogSources: [
+        { addonId: '', addonUrl: '', catalogId: `${prefix}-movies-${extra.variant}`, type: 'movie', genre: '' },
+        { addonId: '', addonUrl: '', catalogId: `${prefix}-series-${extra.variant}`, type: 'series', genre: '' },
+      ],
+    };
+    // In its Hub place: right after the nearest Hub folder that comes before
+    // it (New Releases after Shows, 4K after New Releases...), else last.
+    // Folders the person moved or added keep their places.
+    let at = -1;
+    for (const id of order.slice(0, order.indexOf(extra.id)).reverse()) {
+      at = folders.findIndex((f) => f?.id === id);
+      if (at >= 0) break;
+    }
+    if (at >= 0) folders.splice(at + 1, 0, folder);
+    else folders.push(folder);
+  }
+  return { ...collection, folders };
 }
 
 // `generatedArt` maps folder id -> cover parts (TMDB poster/backdrop/logo paths
 // from the folder's own catalogue, see generated-covers.ts collectGeneratedArt).
 // Only folders without hand-made art use it; folders with art keep their URLs.
-function compileCollectionPlan({ collections = [], homeRows = [], sources = [], externalSources = [], manifestId = '', integration = 'nuvio', hideAnime = false, generatedArt = null } = {}) {
+// `libraryFacts`: whether this install keeps TMDB facts in the library
+// database (the indexed engine). New Releases needs them; without them its
+// rows are never declared, so the Hub folder is left out. Default: ask the
+// engine.
+function compileCollectionPlan({ collections = [], homeRows = [], sources = [], externalSources = [], manifestId = '', integration = 'nuvio', hideAnime = false, generatedArt = null, libraryFacts = null } = {}) {
+  const factsOn = typeof libraryFacts === 'boolean' ? libraryFacts : (() => {
+    try { return require('../library/engine.ts').isIndexed(); } catch { return false; }
+  })();
   const safeCollections = Array.isArray(collections) ? collections : [];
   const safeHomeRows = Array.isArray(homeRows) ? homeRows : [];
   // LeLibrary Collections is a native collection, not a Home row. It is always
@@ -448,6 +482,8 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
       if (hideAnime && isAnimeFolder(folder)) return null;
       // The Genres folder only goes out once a push has filled in its genres.
       if (folder?.id === HUB_GENRES_ID && !(Array.isArray(folder.catalogSources) && folder.catalogSources.some((source) => String(source?.genre || '').trim()))) return null;
+      // New Releases reads stored TMDB dates: only with the library database.
+      if (folder?.id === HUB_NEW_ID && !factsOn) return null;
       const hubArt = HUB_FOLDER_ART[String(folder?.id || '')];
       const folderId = folder?.id || `folder-${ci}-${fi}`;
       const merged = { ...folder, ...(hubArt ? { ...hubArt, focusGifEnabled: true } : {}) };

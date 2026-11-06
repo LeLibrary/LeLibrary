@@ -68,11 +68,15 @@ describe('collection document', () => {
   it('builds the Hub with fixed ids and absolute artwork', () => {
     const hub = hubCollection('torbox', 'https://example.test');
     expect(hub.id).toBe(HUB_COLLECTION_ID);
-    expect(hub.folders.map((folder) => folder.id)).toEqual([HUB_MOVIES_FOLDER_ID, HUB_SHOWS_FOLDER_ID, 'folder-lelibrary-hub-4k', 'folder-lelibrary-hub-hdr', 'folder-lelibrary-hub-genres']);
+    expect(hub.folders.map((folder) => folder.id)).toEqual([HUB_MOVIES_FOLDER_ID, HUB_SHOWS_FOLDER_ID, 'folder-lelibrary-hub-new', 'folder-lelibrary-hub-4k', 'folder-lelibrary-hub-hdr', 'folder-lelibrary-hub-genres']);
     // Genres is filled per library at push time; saved, it holds the two by-genre catalogues.
-    expect(hub.folders[4]!.catalogSources.map((s) => s.catalogId)).toEqual(['torbox-movies-genres', 'torbox-series-genres']);
-    expect(hub.folders[2]?.catalogSources.map((source) => source.catalogId)).toEqual(['torbox-movies-4k', 'torbox-series-4k']);
-    expect(hub.folders[3]?.catalogSources.map((source) => source.catalogId)).toEqual(['torbox-movies-hdr', 'torbox-series-hdr']);
+    expect(hub.folders[5]!.catalogSources.map((s) => s.catalogId)).toEqual(['torbox-movies-genres', 'torbox-series-genres']);
+    expect(hub.folders[2]?.title).toBe('New Releases');
+    expect(hub.folders[2]?.catalogSources.map((source) => source.catalogId)).toEqual(['torbox-movies-new', 'torbox-series-new']);
+    expect(hub.folders[2]?.coverImageUrl).toBe('https://example.test/collection-assets/collections/covers/lelibrary-hub-new-v3.jpg');
+    expect(hub.folders[2]?.heroBackdropUrl).toBe(hub.folders[2]?.coverImageUrl);
+    expect(hub.folders[3]?.catalogSources.map((source) => source.catalogId)).toEqual(['torbox-movies-4k', 'torbox-series-4k']);
+    expect(hub.folders[4]?.catalogSources.map((source) => source.catalogId)).toEqual(['torbox-movies-hdr', 'torbox-series-hdr']);
     expect(hub.folders[0]?.catalogSources).toEqual([
       { addonId: '', addonUrl: '', catalogId: 'torbox-movies', type: 'movie', genre: '' },
     ]);
@@ -109,9 +113,14 @@ describe('home rows', () => {
     expect(nativeLibraryRows(null, 'nuvio')).toEqual(nativeLibraryRows('torbox', 'nuvio'));
     const native = nativeLibraryRows('torbox', 'nuvio');
     const owned = (rows: typeof native) => rows.filter((row) => !/^Your /.test(row.category)).map((row) => row.catalogId);
-    expect(owned(native)).toEqual(['torbox-movies', 'torbox-series', 'torbox-anime', 'torbox-movies-4k', 'torbox-series-4k', 'torbox-movies-hdr', 'torbox-series-hdr']);
+    expect(owned(native)).toEqual(['torbox-movies', 'torbox-series', 'torbox-anime', 'torbox-movies-new', 'torbox-series-new', 'torbox-movies-4k', 'torbox-series-4k', 'torbox-movies-hdr', 'torbox-series-hdr']);
     const stremio = nativeLibraryRows('rd', 'stremio');
-    expect(owned(stremio)).toEqual(['rd-movies', 'rd-series', 'rd-anime', 'rd-movies-4k', 'rd-series-4k', 'rd-movies-hdr', 'rd-series-hdr', 'torbox-collections']);
+    expect(owned(stremio)).toEqual(['rd-movies', 'rd-series', 'rd-anime', 'rd-movies-new', 'rd-series-new', 'rd-movies-4k', 'rd-series-4k', 'rd-movies-hdr', 'rd-series-hdr', 'torbox-collections']);
+    // New Releases rows sit in the LeLibrary group and stay off Home unless picked.
+    const fresh = native.filter((row) => /-new$/.test(row.catalogId));
+    expect(fresh.map((row) => [row.name, row.type, row.category, row.defaultHome])).toEqual([
+      ['New Movies', 'movie', 'LeLibrary', false], ['New & Returning Shows', 'series', 'LeLibrary', false],
+    ]);
     // Your genres: one row per kind TMDB has the genre for, on the same prefix.
     const genres = native.filter((row) => /^Your /.test(row.category));
     expect(new Set(genres.map((row) => row.category))).toEqual(new Set([YOUR_GENRES_GROUP, 'Your themes', 'Your world cinema']));

@@ -252,25 +252,60 @@ const REJECTED_MAX = 1000;
 
 const FILL_PER_TICK = Math.max(1, Number(process.env['LIBRARY_GENRE_FILL'] || 150));
 const CONCURRENCY = 4;
+// How often a show's dates are read again (New Releases follows its latest
+// aired episode): running shows weekly, ended ones every 90 days.
+const TV_RUNNING_DAYS = 7;
+const TV_ENDED_DAYS = 90;
 
 // Titles in this library without facts yet, or stored before keywords,
-// language, the adult flag or the certification were kept (NULL = never read).
+// language, the adult flag, the certification or the dates were kept (NULL =
+// never read). Then shows whose latest episode may have moved: running shows
+// weekly, ended ones every 90 days (a revival). Never-read titles go first.
 async function missing(scopeId: string, limit: number): Promise<{ apiType: 'movie' | 'tv'; tmdbId: number }[]> {
   const pool = await store.ensure();
   const { rows } = await pool.query(
-    `SELECT DISTINCT CASE WHEN i.media_type = 'movie' THEN 'movie' ELSE 'tv' END AS api_type, i.tmdb_id
-       FROM lib_items i
-      WHERE i.scope_id = $1 AND i.removed_at IS NULL AND i.match_status = 'matched' AND i.tmdb_id IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM lib_tmdb_genres g
-                         WHERE g.media_type = CASE WHEN i.media_type = 'movie' THEN 'movie' ELSE 'tv' END
-                           AND g.tmdb_id = i.tmdb_id AND g.keyword_ids IS NOT NULL AND g.adult IS NOT NULL)
-      LIMIT $2`,
-    [scopeId, limit]
+    `SELECT api_type, tmdb_id FROM (
+       SELECT DISTINCT CASE WHEN i.media_type = 'movie' THEN 'movie' ELSE 'tv' END AS api_type, i.tmdb_id,
+              (g.tmdb_id IS NOT NULL AND g.keyword_ids IS NOT NULL AND g.adult IS NOT NULL AND g.dates_at IS NOT NULL) AS refresh
+         FROM lib_items i
+         LEFT JOIN lib_tmdb_genres g
+           ON g.media_type = CASE WHEN i.media_type = 'movie' THEN 'movie' ELSE 'tv' END AND g.tmdb_id = i.tmdb_id
+        WHERE i.scope_id = $1 AND i.removed_at IS NULL AND i.match_status = 'matched' AND i.tmdb_id IS NOT NULL
+          AND (g.tmdb_id IS NULL OR g.keyword_ids IS NULL OR g.adult IS NULL OR g.dates_at IS NULL
+               OR (g.media_type = 'tv' AND (
+                     (g.in_production IS NOT FALSE AND g.dates_at < now() - make_interval(days => $3))
+                     OR g.dates_at < now() - make_interval(days => $4))))
+     ) todo
+     ORDER BY refresh
+     LIMIT $2`,
+    [scopeId, limit, TV_RUNNING_DAYS, TV_ENDED_DAYS]
   );
   return rows.map((row: Record<string, unknown>) => ({ apiType: row['api_type'] === 'movie' ? 'movie' : 'tv', tmdbId: Number(row['tmdb_id']) }));
 }
 
-type Facts = { genreIds: number[]; keywordIds: number[]; lang: string | null; adult: boolean; certification: string | null };
+type Facts = {
+  genreIds: number[]; keywordIds: number[]; lang: string | null; adult: boolean; certification: string | null;
+  // Film: release date. Show: first air date, latest aired episode date and
+  // whether TMDB says it is still running. YYYY-MM-DD or null (never guessed).
+  releaseDate: string | null; lastAirDate: string | null; inProduction: boolean | null;
+};
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+function isoDate(value: unknown): string | null {
+  return typeof value === 'string' && ISO_DATE.test(value) ? value : null;
+}
+
+// The dates New Releases needs, off the same TMDB details reply. A show's
+// latest aired episode comes from last_episode_to_air (TMDB's own "last
+// aired"), else last_air_date.
+function datesFrom(apiType: 'movie' | 'tv', data: any): Pick<Facts, 'releaseDate' | 'lastAirDate' | 'inProduction'> {
+  if (apiType === 'movie') return { releaseDate: isoDate(data?.release_date), lastAirDate: null, inProduction: null };
+  return {
+    releaseDate: isoDate(data?.first_air_date),
+    lastAirDate: isoDate(data?.last_episode_to_air?.air_date) || isoDate(data?.last_air_date),
+    inProduction: typeof data?.in_production === 'boolean' ? data.in_production : null,
+  };
+}
 
 // US certification off the same TMDB reply: films carry it in release_dates,
 // shows in content_ratings. Adult content filtering reads this (NC-17 / X for
@@ -313,12 +348,13 @@ async function fetchFacts(apiKey: string, apiType: 'movie' | 'tv', tmdbId: numbe
       lang,
       adult: data.adult === true,
       certification: certificationFrom(apiType, data),
+      ...datesFrom(apiType, data),
     };
   } catch (err: any) {
     const status = Number(err?.response?.status) || 0;
     if (status === 401) return 'rejected';
     // Gone from TMDB: store "nothing" so it is never asked again.
-    if (status === 404) return { genreIds: [], keywordIds: [], lang: null, adult: false, certification: null };
+    if (status === 404) return { genreIds: [], keywordIds: [], lang: null, adult: false, certification: null, releaseDate: null, lastAirDate: null, inProduction: false };
     return null; // try again on a later pass
   }
 }
@@ -347,13 +383,17 @@ async function fillForScope(scopeId: string, setupKey: string | null | undefined
       }
       if (facts === null) continue;
       await pool.query(
-        `INSERT INTO lib_tmdb_genres (media_type, tmdb_id, genre_ids, keyword_ids, orig_lang, adult, certification, fetched_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+        `INSERT INTO lib_tmdb_genres (media_type, tmdb_id, genre_ids, keyword_ids, orig_lang, adult, certification,
+                                      release_date, last_air_date, in_production, dates_at, fetched_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
          ON CONFLICT (media_type, tmdb_id) DO UPDATE
            SET genre_ids = EXCLUDED.genre_ids, keyword_ids = EXCLUDED.keyword_ids,
                orig_lang = EXCLUDED.orig_lang, adult = EXCLUDED.adult,
-               certification = EXCLUDED.certification, fetched_at = now()`,
-        [job.apiType, job.tmdbId, facts.genreIds, facts.keywordIds, facts.lang, facts.adult, facts.certification]
+               certification = EXCLUDED.certification, release_date = EXCLUDED.release_date,
+               last_air_date = EXCLUDED.last_air_date, in_production = EXCLUDED.in_production,
+               dates_at = now(), fetched_at = now()`,
+        [job.apiType, job.tmdbId, facts.genreIds, facts.keywordIds, facts.lang, facts.adult, facts.certification,
+          facts.releaseDate, facts.lastAirDate, facts.inProduction]
       );
       filled++;
     }
@@ -463,6 +503,7 @@ export interface GenresApi {
   ruleSql: typeof ruleSql;
   fillForScope: typeof fillForScope;
   fetchFacts: typeof fetchFacts;
+  datesFrom: typeof datesFrom;
   tmdbIdsWithGenre: typeof tmdbIdsWithGenre;
   idsMatchingRules: typeof idsMatchingRules;
   adultTmdbIds: typeof adultTmdbIds;
@@ -470,4 +511,4 @@ export interface GenresApi {
   genreVersion: typeof genreVersion;
 }
 
-module.exports = { GENRES, ADULT_CERTIFICATIONS, genreBySlug, genreByName, genresFor, nameFor, matchesRule, ruleSql, fillForScope, fetchFacts, tmdbIdsWithGenre, idsMatchingRules, adultTmdbIds, ownedGenreCounts, genreVersion } satisfies GenresApi;
+module.exports = { GENRES, ADULT_CERTIFICATIONS, genreBySlug, genreByName, genresFor, nameFor, matchesRule, ruleSql, fillForScope, fetchFacts, datesFrom, tmdbIdsWithGenre, idsMatchingRules, adultTmdbIds, ownedGenreCounts, genreVersion } satisfies GenresApi;

@@ -145,7 +145,7 @@ test('POST /preview-draft: body limit', async () => {
 test('draft catalogue kinds: library rows, own definitions, discovery, anything else unknown', () => {
   const { classifyDraftCatalog } = require('../src/setup/preview.ts');
   const { catalogs } = require('../src/catalog/catalogdefs.ts');
-  for (const id of ['torbox-movies', 'rd-series', 'ad-anime', 'pm-movies-4k', 'torbox-series-hdr', 'torbox-movies-g-horror', 'torbox-series-genres', 'torbox-collections', 'collection-645']) {
+  for (const id of ['torbox-movies', 'rd-series', 'ad-anime', 'pm-movies-4k', 'torbox-series-hdr', 'torbox-movies-new', 'rd-series-new', 'torbox-movies-g-horror', 'torbox-series-genres', 'torbox-collections', 'collection-645']) {
     assert.equal(classifyDraftCatalog('movie', id).kind, 'library', id);
   }
   // Personal lists (v6) and the old watchlist ids: the setup's own lists.

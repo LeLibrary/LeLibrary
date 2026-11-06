@@ -7,15 +7,19 @@
 //
 // Catalogue ids: `{prefix}-movies-4k`, `{prefix}-series-4k`,
 // `{prefix}-movies-hdr`, `{prefix}-series-hdr` (prefix = torbox, rd, ...).
+// `{prefix}-movies-new` / `{prefix}-series-new` are the Hub's New Releases
+// rows: filtered by TMDB release / air dates (library/new-releases.ts), not
+// by names, so they need the library database like the genre rows.
 
 // '4k' | 'hdr' (release quality), 'g-<slug>' (one "Your genres" row) or
 // 'genres' (the Hub's Genres folder catalogue: the genre comes in the genre
 // extra). Genres are filtered by TMDB facts (library/genres.ts), not names.
-type Variant = '4k' | 'hdr' | 'genres' | `g-${string}`;
+// 'new': released (films) or last aired (shows) in the last 12 months.
+type Variant = '4k' | 'hdr' | 'new' | 'genres' | `g-${string}`;
 type Row = { name?: unknown; raw?: unknown; [key: string]: unknown };
 
 const VARIANTS: readonly Variant[] = ['4k', 'hdr'];
-const LIBRARY_ID = /^([a-z]+)-(movies|series|anime)(?:-(4k|hdr|genres|g-[a-z0-9]+))?$/;
+const LIBRARY_ID = /^([a-z]+)-(movies|series|anime)(?:-(4k|hdr|new|genres|g-[a-z0-9]+))?$/;
 
 const TESTS: Record<'4k' | 'hdr', RegExp> = {
   '4k': /\b(?:2160P|4K|UHD)\b/,
@@ -37,6 +41,12 @@ function parseLibraryCatalogId(id: unknown): { prefix: string; kind: 'movies' | 
 
 function isGenreVariant(variant: unknown): variant is `g-${string}` | 'genres' {
   return typeof variant === 'string' && (variant.startsWith('g-') || variant === 'genres');
+}
+
+// Rows filtered by TMDB facts kept in the library database (genres, New
+// Releases). The request-time path has no database: it answers them empty.
+function needsLibraryFacts(variant: unknown): boolean {
+  return isGenreVariant(variant) || variant === 'new';
 }
 
 // Every name a release carries: the item name, and file names where the
@@ -65,8 +75,8 @@ function releaseNames(item: Row): string[] {
 
 function matchesVariant(item: Row, variant: Variant | null): boolean {
   if (!variant) return true;
-  // Genre rows are filtered by TMDB genre (library/genres.ts), not names.
-  if (isGenreVariant(variant)) return true;
+  // Genre and New Releases rows are filtered by TMDB facts, not names.
+  if (needsLibraryFacts(variant)) return true;
   const test = TESTS[variant as '4k' | 'hdr'];
   return releaseNames(item).some((name) => test.test(name.toUpperCase()));
 }
@@ -76,6 +86,7 @@ export interface QualityFilterApi {
   parseLibraryCatalogId: typeof parseLibraryCatalogId;
   matchesVariant: typeof matchesVariant;
   isGenreVariant: typeof isGenreVariant;
+  needsLibraryFacts: typeof needsLibraryFacts;
 }
 
-module.exports = { VARIANTS, parseLibraryCatalogId, matchesVariant, isGenreVariant } satisfies QualityFilterApi;
+module.exports = { VARIANTS, parseLibraryCatalogId, matchesVariant, isGenreVariant, needsLibraryFacts } satisfies QualityFilterApi;

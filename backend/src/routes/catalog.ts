@@ -677,8 +677,8 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       if (!catalogProviderId || !active.includes(catalogProviderId)) return res.json({ metas: [] });
     }
 
-    // `{prefix}-movies-4k` / `-hdr`: My Movies / My Shows narrowed to one
-    // release quality (library/quality-filter.ts).
+    // `{prefix}-movies-4k` / `-hdr` / `-new`: My Movies / My Shows narrowed
+    // to one release quality or to new releases (library/quality-filter.ts).
     const libraryId = require('../library/quality-filter.ts').parseLibraryCatalogId(catalogId);
     let variant = libraryId?.variant || null;
     // The Hub's Genres folder catalogue: the genre extra names the genre.
@@ -740,9 +740,10 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       }
     }
 
-    // "Your genres" rows need the library database (genres live there). The
-    // request-time path has none: answer empty rather than the whole library.
-    if (require('../library/quality-filter.ts').isGenreVariant(variant)) {
+    // "Your genres" and New Releases rows need the library database (genres
+    // and release dates live there). The request-time path has none: answer
+    // empty rather than the whole library.
+    if (require('../library/quality-filter.ts').needsLibraryFacts(variant)) {
       res.setHeader('Cache-Control', 'no-store');
       return res.json(withCacheHints({ metas: [] }, { cacheMaxAge: 0, staleRevalidate: 0, staleError: 0 }));
     }

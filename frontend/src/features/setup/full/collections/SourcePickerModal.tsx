@@ -23,7 +23,7 @@ interface PickerSource {
 }
 
 // Catalogue source picker for the folder editor: LeLibrary's own rows first
-// (`leading`: My Movies / My Shows, 4K, HDR, Your genres / themes / world
+// (`leading`: My Movies / My Shows, New Releases, 4K, HDR, Your genres / themes / world
 // cinema, Trending and Popular, the same definitions the Home rows picker
 // uses), then the shared catalogue registry (/api/catalog-library).
 const NO_LEADING: BrowserSource[] = [];

@@ -288,6 +288,15 @@ const MIGRATIONS = [
   // "Hide adult content" can answer without a new upstream read.
   `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS adult boolean`,
   `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS certification text`,
+  // New Releases (Hub folder, library/new-releases.ts): the release date of a
+  // film, and a show's first and latest aired episode dates, off the same
+  // TMDB read. `dates_at` NULL = stored before dates were kept: the fill
+  // reads the title once more. Running shows are re-read weekly (their
+  // latest episode moves), so `in_production` is kept too.
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS release_date date`,
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS last_air_date date`,
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS in_production boolean`,
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS dates_at timestamptz`,
 ];
 
 async function migrate() {

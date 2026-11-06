@@ -170,6 +170,8 @@ export const HUB_SHOWS_FOLDER_ID = 'folder-lelibrary-hub-shows';
 export const HUB_COVER = '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg';
 export const HUB_MOVIES_COVER = '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg';
 export const HUB_SHOWS_COVER = '/collection-assets/collections/covers/lelibrary-hub-shows-v3.jpg';
+export const HUB_NEW_FOLDER_ID = 'folder-lelibrary-hub-new';
+export const HUB_NEW_COVER = '/collection-assets/collections/covers/lelibrary-hub-new-v3.jpg';
 export const HUB_4K_FOLDER_ID = 'folder-lelibrary-hub-4k';
 export const HUB_HDR_FOLDER_ID = 'folder-lelibrary-hub-hdr';
 export const HUB_4K_COVER = '/collection-assets/collections/covers/lelibrary-hub-4k-v3.jpg';
@@ -324,7 +326,8 @@ export function absoluteUrl(origin: string, value: string): string {
 }
 
 // The LeLibrary Hub: My Movies, My Shows, and the same library narrowed to
-// 4K and to HDR & Dolby Vision (each of those holds movies and shows).
+// new releases (released or last aired in the last 12 months), 4K and HDR &
+// Dolby Vision (each of those holds movies and shows), then Genres.
 export function hubCollection(prefix: string, origin: string): CollectionDoc {
   const abs = (path: string) => absoluteUrl(origin, path);
   return {
@@ -362,7 +365,7 @@ export function hubCollection(prefix: string, origin: string): CollectionDoc {
       },
       // Genres: saved as two genre-less sources; each push fills in one tab
       // per genre the library owns enough of (server: expandHubGenres).
-      ...([[HUB_4K_FOLDER_ID, '4K', '4k', HUB_4K_COVER], [HUB_HDR_FOLDER_ID, 'HDR & Dolby Vision', 'hdr', HUB_HDR_COVER], [HUB_GENRES_FOLDER_ID, 'Genres', 'genres', HUB_GENRES_COVER]] as const).map(([id, title, variant, cover]) => ({
+      ...([[HUB_NEW_FOLDER_ID, 'New Releases', 'new', HUB_NEW_COVER], [HUB_4K_FOLDER_ID, '4K', '4k', HUB_4K_COVER], [HUB_HDR_FOLDER_ID, 'HDR & Dolby Vision', 'hdr', HUB_HDR_COVER], [HUB_GENRES_FOLDER_ID, 'Genres', 'genres', HUB_GENRES_COVER]] as const).map(([id, title, variant, cover]) => ({
         id,
         title,
         tileShape: 'LANDSCAPE' as const,
@@ -392,18 +395,33 @@ export function collectionBackdrop(collection: CollectionDoc): string {
   return '';
 }
 
-// A Hub saved before its 4K, HDR & Dolby Vision or Genres folders existed
-// gets them on load, on its Movies folder's provider prefix, so the editor
-// shows what a push sends (server: withHubExtras in collection-plan.ts).
-// Only missing folders are added; saved folders are never touched.
+// A Hub saved before its New Releases, 4K, HDR & Dolby Vision or Genres
+// folders existed gets them on load, on its Movies folder's provider prefix,
+// so the editor shows what a push sends (server: withHubExtras in
+// collection-plan.ts). Only missing folders are added, each right after the
+// nearest Hub folder that comes before it (else last); saved folders are
+// never touched or moved.
 export function withHubExtras(collection: CollectionDoc, origin: string): CollectionDoc {
   if (!collection || collection.id !== HUB_COLLECTION_ID || !Array.isArray(collection.folders)) return collection;
   const movies = collection.folders.find((folder) => folder.id === HUB_MOVIES_FOLDER_ID);
   const prefix = (String(movies?.catalogSources?.[0]?.catalogId || '').match(/^([a-z]+)-movies$/) || [])[1];
   if (!prefix) return collection;
   const have = new Set(collection.folders.map((folder) => folder.id));
-  const extras = hubCollection(prefix, origin).folders.filter((folder) => !have.has(folder.id) && folder.id !== HUB_SHOWS_FOLDER_ID && folder.id !== HUB_MOVIES_FOLDER_ID);
-  return extras.length ? { ...collection, folders: [...collection.folders, ...extras] } : collection;
+  const hub = hubCollection(prefix, origin).folders;
+  const order = hub.map((folder) => folder.id);
+  if (order.every((id) => have.has(id) || id === HUB_SHOWS_FOLDER_ID)) return collection;
+  const folders = [...collection.folders];
+  for (const folder of hub) {
+    if (have.has(folder.id) || folder.id === HUB_SHOWS_FOLDER_ID || folder.id === HUB_MOVIES_FOLDER_ID) continue;
+    let at = -1;
+    for (const id of order.slice(0, order.indexOf(folder.id)).reverse()) {
+      at = folders.findIndex((f) => f.id === id);
+      if (at >= 0) break;
+    }
+    if (at >= 0) folders.splice(at + 1, 0, folder);
+    else folders.push(folder);
+  }
+  return { ...collection, folders };
 }
 
 // ── Home rows (Move In Step 6) ────────────────────────────────────────────
@@ -621,6 +639,10 @@ export function nativeLibraryRows(prefix: string | null, platform: string): Brow
     { id: 'native-my-anime', catalogId: `${resolved}-anime`, name: 'My Anime', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: true },
     // The same library narrowed to one release quality (server:
     // library/quality-filter.ts). Never on Home unless picked.
+    // New Releases (server: library/new-releases.ts): films released and
+    // shows last aired in the last 12 months, newest first.
+    { id: 'native-new-movies', catalogId: `${resolved}-movies-new`, name: 'New Movies', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
+    { id: 'native-new-shows', catalogId: `${resolved}-series-new`, name: 'New & Returning Shows', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
     { id: 'native-4k-movies', catalogId: `${resolved}-movies-4k`, name: '4K Movies', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
     { id: 'native-4k-shows', catalogId: `${resolved}-series-4k`, name: '4K Shows', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
     { id: 'native-hdr-movies', catalogId: `${resolved}-movies-hdr`, name: 'HDR & Dolby Vision Movies', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },

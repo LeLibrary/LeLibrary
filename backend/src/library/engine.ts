@@ -618,10 +618,15 @@ async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip 
   // Genre rows also key on the genre fill's progress, so a page cached while
   // the first fill ran is rebuilt as genres arrive.
   const genreRow = typeof variant === 'string' && variant.startsWith('g-');
+  // New Releases also keys on the day (the 12-month window moves) and the
+  // fill's progress (dates arrive with it).
+  const newRow = variant === 'new' && type !== 'anime';
   const fingerprint = catalogFingerprint({
     userKey, type, sortBy, skip, libraryIdMode, provider, enhance, hideAnime,
     filters: filterState.hideAdult || filterState.excludeCategories.length ? filterState : null,
-    variant: genreRow ? `${variant}@${require('./genres.ts').genreVersion()}` : variant,
+    variant: genreRow ? `${variant}@${require('./genres.ts').genreVersion()}`
+      : newRow ? `new@${require('./new-releases.ts').newReleasesKey()}`
+        : variant,
   });
   // Result cache keyed on the projection fingerprint, so a completed sync that
   // changed nothing keeps serving cached pages, and stale pages expire on
@@ -680,10 +685,16 @@ async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip 
       }
       // 4K / HDR rows: titles with at least one release of that quality. All
       // releases of a kept title stay, so its page and streams match My Movies.
+      let rank = null;
       if (genreRow) {
         // "Your genres" rows: titles whose TMDB genres include this one.
         const ids = await require('./genres.ts').tmdbIdsWithGenre(type === 'movie' ? 'movies' : 'series', variant.slice(2));
         rows = rows.filter((row) => ids.has(Number(row.tmdb_id)));
+      } else if (newRow) {
+        // New Releases: released / last aired in the last 12 months, newest
+        // first. Titles without a stored date are left out.
+        rank = await require('./new-releases.ts').recentReleaseDates(filterKind);
+        rows = rows.filter((row) => rank.has(Number(row.tmdb_id)));
       } else if (variant) {
         const { matchesVariant } = require('./quality-filter.ts');
         const keep = new Set(rows.filter((row) => matchesVariant(row, variant)).map((row) => String(row.tmdb_id || row.entity_key)));
@@ -691,7 +702,7 @@ async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip 
       }
       const metas = await time('catalog:assemble', () => catalog.buildFromRows(rows, {
         userKey, sortBy, skip, limit: 50, type, libraryIdMode,
-        tmdbApiKey: config.tmdbApiKey, lang, enhance, trace,
+        tmdbApiKey: config.tmdbApiKey, lang, enhance, trace, rank,
       }));
       await cache.set(resultKey, metas, catalogTtl()).catch(() => {});
       metrics.request('catalogIndexed');

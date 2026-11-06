@@ -78,14 +78,16 @@ test('one TMDB read gives genres, keywords, language, adult flag and certificati
     original_language: 'en',
     adult: false,
     release_dates: { results: [{ iso_3166_1: 'US', release_dates: [{ certification: 'NC-17', type: 3 }] }] },
-  })), { genreIds: [27], keywordIds: [12377], lang: 'en', adult: false, certification: 'NC-17' });
+    release_date: '2026-03-14',
+  })), { genreIds: [27], keywordIds: [12377], lang: 'en', adult: false, certification: 'NC-17', releaseDate: '2026-03-14', lastAirDate: null, inProduction: null });
   assert.deepEqual(await genres.fetchFacts('k', 'tv', 1, reply(200, {
     genres: [{ id: 18 }],
     keywords: { results: [{ id: 9672 }] },
     original_language: 'ko',
     content_ratings: { results: [{ iso_3166_1: 'US', rating: 'TV-MA' }] },
-  })), { genreIds: [18], keywordIds: [9672], lang: 'ko', adult: false, certification: 'TV-MA' }, 'shows list keywords under results and rate in content_ratings');
-  assert.deepEqual(await genres.fetchFacts('k', 'movie', 1, reply(404)), { genreIds: [], keywordIds: [], lang: null, adult: false, certification: null });
+    first_air_date: '2019-01-04', last_air_date: '2026-09-01', last_episode_to_air: { air_date: '2026-08-25' }, in_production: true,
+  })), { genreIds: [18], keywordIds: [9672], lang: 'ko', adult: false, certification: 'TV-MA', releaseDate: '2019-01-04', lastAirDate: '2026-08-25', inProduction: true }, 'shows list keywords under results and rate in content_ratings');
+  assert.deepEqual(await genres.fetchFacts('k', 'movie', 1, reply(404)), { genreIds: [], keywordIds: [], lang: null, adult: false, certification: null, releaseDate: null, lastAirDate: null, inProduction: false });
   assert.equal(await genres.fetchFacts('k', 'movie', 1, reply(401)), 'rejected');
   assert.equal(await genres.fetchFacts('k', 'movie', 1, reply(503)), null);
 });

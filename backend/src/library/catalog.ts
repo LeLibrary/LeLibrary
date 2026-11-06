@@ -82,8 +82,13 @@ function assembleMetas(rows, userKey) {
   return metas;
 }
 
-function sortMetas(metas, sortBy) {
-  if (sortBy === 'data_lancamento') {
+// `rank` (TMDB id -> YYYY-MM-DD) overrides the setup's sort: New Releases is
+// always newest first, then by name.
+function sortMetas(metas, sortBy, rank = null) {
+  if (rank instanceof Map) {
+    const at = (m) => rank.get(Number(m.tmdbId)) || '';
+    metas.sort((a, b) => at(b).localeCompare(at(a)) || (a.name || '').localeCompare(b.name || '', 'en-US'));
+  } else if (sortBy === 'data_lancamento') {
     metas.sort((a, b) => (b.released || '').localeCompare(a.released || ''));
   } else if (sortBy === 'titulo') {
     metas.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'en-US'));
@@ -141,7 +146,7 @@ async function buildFromRows(rows, opts) {
   const {
     userKey = '', sortBy = 'data_adicao', skip = 0, limit = 50, type = 'movie',
     libraryIdMode = 'torbox', tmdbApiKey = '', lang = 'en-US', enhance = {},
-    paginate = true, trace = null,
+    paginate = true, trace = null, rank = null,
   } = opts;
   const time = async (name, fn) => {
     try {
@@ -150,7 +155,7 @@ async function buildFromRows(rows, opts) {
     } catch { return fn(); }
   };
   let metas = assembleMetas(rows, userKey);
-  sortMetas(metas, sortBy);
+  sortMetas(metas, sortBy, rank);
 
   if (paginate) metas = metas.slice(skip, skip + limit);
 
