@@ -712,14 +712,17 @@ export const DISCOVERY_ROWS: BrowserSource[] = [
 // picked before v6 is the same row; everything else is
 // lelibrary-user-{provider}-{list}-{type}. A shelf only shows when that
 // service is connected or filled in (the draft or the saved setup).
-export type UserListService = 'simkl' | 'mdblist' | 'anilist' | 'trakt';
-export interface UserListServices { simkl: boolean; mdblist: boolean; anilist: boolean; trakt?: boolean }
+// `history` (v6): Continue Watching / Up Next, shown while a Watch history
+// source is on (the Watch history card).
+export type UserListService = 'simkl' | 'mdblist' | 'anilist' | 'trakt' | 'history';
+export interface UserListServices { simkl: boolean; mdblist: boolean; anilist: boolean; trakt?: boolean; history?: boolean }
 
 export const USER_LIST_GROUPS: Record<UserListService, string> = {
   simkl: 'Your Simkl lists',
   mdblist: 'Your MDBList lists',
   anilist: 'Your AniList lists',
   trakt: 'Your Trakt lists',
+  history: 'Watch history',
 };
 
 export function isUserListGroup(category: string): boolean {
@@ -747,6 +750,9 @@ export const USER_LIST_ROWS: (BrowserSource & { service: UserListService })[] = 
   userRow('anilist', 'ul-anilist-current-movie', 'lelibrary-user-anilist-current-movie', 'AniList Watching', 'movie'),
   userRow('anilist', 'ul-anilist-planning-movie', 'lelibrary-user-anilist-planning-movie', 'AniList Plan to Watch', 'movie'),
   userRow('anilist', 'ul-anilist-completed-movie', 'lelibrary-user-anilist-completed-movie', 'AniList Completed', 'movie'),
+  userRow('history', 'ul-history-continue-movie', 'lelibrary-user-history-continue-movie', 'Continue Watching', 'movie'),
+  userRow('history', 'ul-history-continue-series', 'lelibrary-user-history-continue-series', 'Continue Watching', 'series'),
+  userRow('history', 'ul-history-upnext-series', 'lelibrary-user-history-upnext-series', 'Up Next', 'series'),
   // Trakt is no longer offered; a setup already connected keeps its rows.
   userRow('trakt', 'watchlist-trakt-movie', 'torbox-watchlist-trakt-movie', 'Trakt Watchlist', 'movie'),
   userRow('trakt', 'watchlist-trakt-series', 'torbox-watchlist-trakt-series', 'Trakt Watchlist', 'series'),

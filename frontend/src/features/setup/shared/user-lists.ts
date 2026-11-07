@@ -27,6 +27,8 @@ export interface UserListsInput {
   status?: Partial<WatchlistState> | null;
   // The MDBList key typed on the page ('' when none).
   mdblistKey?: string;
+  // A Watch history source is on (Continue Watching / Up Next rows).
+  history?: boolean;
 }
 
 export interface UserListsContext {
@@ -35,7 +37,7 @@ export interface UserListsContext {
   mdblistSource: { kind: 'typed'; key: string } | { kind: 'saved'; uuid: string; editToken: string } | null;
 }
 
-const NONE: UserListServices = { simkl: false, mdblist: false, anilist: false, trakt: false };
+const NONE: UserListServices = { simkl: false, mdblist: false, anilist: false, trakt: false, history: false };
 
 // Pure: the services from what the page knows plus the saved connection
 // status (edit mode). Trakt only for a setup that is already connected.
@@ -49,6 +51,7 @@ export function userListServicesFrom(input: UserListsInput, status: Partial<Watc
     // AniList rows need a connection: there is no username path (v6).
     anilist: draftConn('anilist') || status?.anilist?.connected === true,
     trakt: status?.trakt?.connected === true,
+    history: input.history === true,
   };
 }
 
@@ -67,7 +70,7 @@ export function useUserLists(input: UserListsInput): UserListsContext {
   const sourceKey = source ? (source.kind === 'typed' ? `typed:${source.key}` : `saved:${source.uuid}:${source.editToken}`) : '';
   // Stable objects so pickers only re-render when something changed.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const stableServices = useMemo(() => services, [services.simkl, services.mdblist, services.anilist, services.trakt]);
+  const stableServices = useMemo(() => services, [services.simkl, services.mdblist, services.anilist, services.trakt, services.history]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const stableSource = useMemo(() => source, [sourceKey]);
   return useMemo(() => ({ services: stableServices, mdblistSource: stableSource }), [stableServices, stableSource]);

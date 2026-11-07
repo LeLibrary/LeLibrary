@@ -25,6 +25,17 @@ const ANILIST_AUTHORIZE = 'https://anilist.co/api/v2/oauth/authorize';
 const ANILIST_TOKEN = 'https://anilist.co/api/v2/oauth/token';
 const ANILIST_DEFAULT_LIFETIME_S = 365 * 24 * 60 * 60;
 
+// Simkl (v6): AUTH V2, the OAuth 2.0 authorization-code flow with PKCE S256
+// (mandatory on V2). The code_verifier is generated here, kept server-side
+// with the state and sent only on the token exchange: the browser only ever
+// sees its SHA-256 challenge. Scopes: read the lists and history, and write
+// history (the opt-in Nuvio -> Simkl sync). A V2 grant is a 7-day access
+// token plus a sliding 180-day refresh token (refreshed in connections.ts).
+const SIMKL_AUTHORIZE = 'https://simkl.com/oauth2/authorize';
+const SIMKL_TOKEN = 'https://api.simkl.com/oauth2/token';
+const SIMKL_ISSUER = 'https://simkl.com';
+const SIMKL_SCOPES = 'media:read media:write';
+
 const PENDING_TTL_MS = 10 * 60 * 1000;
 // Abandoned flows are never consumed. States share one TTL, so each insert
 // sweeps every expired state, and the cap drops the oldest live ones if a
@@ -38,6 +49,8 @@ interface PendingOAuth {
   // Edit page (v6): the sign-in is staged, not sealed. The hash of the edit
   // session that started it (setup/pending-connections.ts), never the token.
   sessionHash?: string | null;
+  // PKCE (Simkl V2): the verifier never leaves the server.
+  codeVerifier?: string;
 }
 
 const pending = new Map<string, PendingOAuth>();
@@ -61,11 +74,32 @@ function callbackUrl(provider: string, baseUrl: string): string {
   return `${baseUrl}/api/setup/oauth/${provider}/callback`;
 }
 
+// PKCE pair (RFC 7636): a 43-character verifier and its S256 challenge.
+function newCodeVerifier(): string {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
+function codeChallenge(verifier: string): string {
+  return crypto.createHash('sha256').update(verifier).digest('base64url');
+}
+
 function authorizeUrl(provider: WatchlistOAuthProvider, state: string, baseUrl: string): string {
-  const clientId = provider === 'simkl' ? process.env['SIMKL_CLIENT_ID']
-    : provider === 'anilist' ? process.env['ANILIST_CLIENT_ID'] : process.env['TRAKT_CLIENT_ID'];
-  const u = new URL(provider === 'simkl' ? 'https://simkl.com/oauth/authorize'
-    : provider === 'anilist' ? ANILIST_AUTHORIZE : 'https://trakt.tv/oauth/authorize');
+  if (provider === 'simkl') {
+    const u = new URL(SIMKL_AUTHORIZE);
+    u.searchParams.set('client_id', String(process.env['SIMKL_CLIENT_ID'] || ''));
+    u.searchParams.set('redirect_uri', callbackUrl(provider, baseUrl));
+    u.searchParams.set('response_type', 'code');
+    u.searchParams.set('scope', SIMKL_SCOPES);
+    u.searchParams.set('state', state);
+    const verifier = pending.get(state)?.codeVerifier;
+    if (verifier) {
+      u.searchParams.set('code_challenge', codeChallenge(verifier));
+      u.searchParams.set('code_challenge_method', 'S256');
+    }
+    return u.toString();
+  }
+  const clientId = provider === 'anilist' ? process.env['ANILIST_CLIENT_ID'] : process.env['TRAKT_CLIENT_ID'];
+  const u = new URL(provider === 'anilist' ? ANILIST_AUTHORIZE : 'https://trakt.tv/oauth/authorize');
   u.searchParams.set('client_id', String(clientId || ''));
   u.searchParams.set('redirect_uri', callbackUrl(provider, baseUrl));
   u.searchParams.set('response_type', 'code');
@@ -85,34 +119,72 @@ function createPendingOAuth(
 ): { state: string; expiresAt: number } {
   const state = randomState();
   const expiresAt = nowMs + PENDING_TTL_MS;
-  boundedSet(pending, state, { uuid, provider, expiresAt, sessionHash: uuid ? sessionHash : null }, PENDING_MAX, (entry) => entry.expiresAt <= nowMs);
+  const entry: PendingOAuth = { uuid, provider, expiresAt, sessionHash: uuid ? sessionHash : null };
+  if (provider === 'simkl') entry.codeVerifier = newCodeVerifier();
+  boundedSet(pending, state, entry, PENDING_MAX, (old) => old.expiresAt <= nowMs);
   return { state, expiresAt };
 }
 
-function consumePendingOAuth(state: unknown, nowMs: number = Date.now()): { uuid: string | null; provider: WatchlistOAuthProvider; sessionHash: string | null } | null {
+export interface ConsumedOAuth {
+  uuid: string | null;
+  provider: WatchlistOAuthProvider;
+  sessionHash: string | null;
+  codeVerifier?: string;
+}
+
+function consumePendingOAuth(state: unknown, nowMs: number = Date.now()): ConsumedOAuth | null {
   if (typeof state !== 'string' || !state) return null;
   const found = pending.get(state);
   pending.delete(state);
   if (!found || found.expiresAt <= nowMs) return null;
-  return { uuid: found.uuid, provider: found.provider, sessionHash: found.sessionHash ?? null };
+  return {
+    uuid: found.uuid, provider: found.provider, sessionHash: found.sessionHash ?? null,
+    ...(found.codeVerifier ? { codeVerifier: found.codeVerifier } : {}),
+  };
 }
 
-async function exchangeCode(provider: WatchlistOAuthProvider, code: string, baseUrl: string): Promise<WatchlistConn> {
+// RFC 9207 mix-up defence: Simkl V2 sends `iss` on every callback (success
+// and error); it must be Simkl's issuer exactly. Absent is accepted (older
+// flows never sent it); anything else is refused before the code is used.
+function issuerAccepted(provider: string, iss: unknown): boolean {
+  if (provider !== 'simkl' || iss === undefined || iss === null || iss === '') return true;
+  return String(iss) === SIMKL_ISSUER;
+}
+
+function appVersion(): string {
+  try { return (require('../../../package.json') as { version: string }).version; } catch { return '0'; }
+}
+
+async function exchangeCode(provider: WatchlistOAuthProvider, code: string, baseUrl: string, codeVerifier?: string): Promise<WatchlistConn> {
   if (provider === 'simkl') {
+    // The code is single-use and burnt even by a failed exchange: never retry.
+    if (!codeVerifier) throw new Error('Simkl sign-in expired. Close this and try again.');
     const tok = await axios.post(
-      'https://api.simkl.com/oauth/token',
+      SIMKL_TOKEN,
       new URLSearchParams({
+        grant_type: 'authorization_code',
         code,
+        redirect_uri: callbackUrl('simkl', baseUrl),
+        code_verifier: codeVerifier,
         client_id: String(process.env['SIMKL_CLIENT_ID'] || ''),
         client_secret: String(process.env['SIMKL_CLIENT_SECRET'] || ''),
-        redirect_uri: callbackUrl('simkl', baseUrl),
-        grant_type: 'authorization_code',
       }).toString(),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 15000 },
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': `LeLibrary/${appVersion()}` }, timeout: 15000 },
     );
-    const access = (tok.data || {})['access_token'];
+    const data = (tok.data || {}) as Record<string, unknown>;
+    const access = data['access_token'];
     if (!access) throw new Error('Simkl token exchange failed');
-    return { access_token: String(access), client_id: process.env['SIMKL_CLIENT_ID'] };
+    const expiresIn = Number(data['expires_in'] || 0);
+    return {
+      access_token: String(access),
+      refresh_token: typeof data['refresh_token'] === 'string' && data['refresh_token'] ? data['refresh_token'] as string : null,
+      expires_at: expiresIn ? Date.now() + expiresIn * 1000 : null,
+      client_id: process.env['SIMKL_CLIENT_ID'],
+      auth: 'v2',
+      // What Simkl actually granted (a typo or a missing scope is silently
+      // read-only): history sync checks it before writing.
+      scope: typeof data['scope'] === 'string' ? data['scope'] as string : '',
+    };
   }
   if (provider === 'anilist') {
     const tok = await axios.post(ANILIST_TOKEN, {
@@ -227,10 +299,13 @@ export interface OAuthApi {
   callbackUrl: (provider: string, baseUrl: string) => string;
   authorizeUrl: (provider: WatchlistOAuthProvider, state: string, baseUrl: string) => string;
   createPendingOAuth: (uuid: string | null, provider: WatchlistOAuthProvider, nowMs?: number, sessionHash?: string | null) => { state: string; expiresAt: number };
-  consumePendingOAuth: (state: unknown, nowMs?: number) => { uuid: string | null; provider: WatchlistOAuthProvider; sessionHash: string | null } | null;
+  consumePendingOAuth: (state: unknown, nowMs?: number) => ConsumedOAuth | null;
   pendingOAuthCount: () => number;
   PENDING_MAX: number;
-  exchangeCode: (provider: WatchlistOAuthProvider, code: string, baseUrl: string) => Promise<WatchlistConn>;
+  exchangeCode: (provider: WatchlistOAuthProvider, code: string, baseUrl: string, codeVerifier?: string) => Promise<WatchlistConn>;
+  issuerAccepted: (provider: string, iss: unknown) => boolean;
+  codeChallenge: (verifier: string) => string;
+  SIMKL_SCOPES: string;
   popupPage: (provider: string, ok: boolean, message: string) => string;
   popupPageWithTokens: (provider: string, connection: WatchlistConn) => string;
   popupPageWithPending: (provider: string, pendingId: string, username: string | null) => string;
@@ -245,6 +320,9 @@ module.exports = {
   pendingOAuthCount,
   PENDING_MAX,
   exchangeCode,
+  issuerAccepted,
+  codeChallenge,
+  SIMKL_SCOPES,
   popupPage,
   popupPageWithTokens,
   popupPageWithPending,

@@ -1,5 +1,6 @@
 import { TORBOX_SOURCE_IDS, cleanTorboxSources } from '@/features/setup/shared/config-contract';
 import { DEFAULT_SEARCH_OPTIONS, type SearchOptionsDraft } from '@/features/setup/shared/search-options';
+import { DEFAULT_WATCH_HISTORY, cleanWatchHistory, type WatchHistoryDraft } from '@/features/setup/shared/watch-history';
 
 // Content filters plus language, order, search scope and stream notices. The
 // backend honours every one of these field names on the config. Hide anime,
@@ -17,6 +18,8 @@ export interface MetadataExtrasDraft {
   searchScope: string;
   // Settle In / Move In Search accordion (config.searchOptions).
   searchOptions: SearchOptionsDraft;
+  // Settle In / Move In Watch history card (config.watchHistory).
+  watchHistory: WatchHistoryDraft;
   notices: boolean;
   noticeTypes: string[];
 }
@@ -33,6 +36,7 @@ export const EMPTY_METADATA_EXTRAS: MetadataExtrasDraft = {
   torboxSources: [...TORBOX_SOURCE_IDS],
   searchScope: 'combined',
   searchOptions: { ...DEFAULT_SEARCH_OPTIONS, names: {} },
+  watchHistory: cleanWatchHistory(DEFAULT_WATCH_HISTORY),
   notices: true,
   noticeTypes: [...DEFAULT_NOTICE_TYPES],
 };

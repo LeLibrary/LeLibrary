@@ -146,6 +146,149 @@ async function refreshTraktForSetup(store: SetupStoreLike, uuid: string, conn: W
   return flight;
 }
 
+// ── Simkl (v6: AUTH V2) ───────────────────────────────────────────────
+// New connections come from the V2 app (SIMKL_CLIENT_ID): a 7-day access
+// token plus a sliding 180-day refresh token, scopes media:read +
+// media:write. Older connections were issued to the V1 app: a five-year
+// token, no refresh, and they only work with that app's client id
+// (SIMKL_V1_CLIENT_ID). They keep working until Simkl retires V1 (around
+// 2027-04) or the person reconnects; without the V1 id they need a
+// reconnect. A V2 token is told apart locally (`auth: 'v2'`, or Simkl's
+// `simkl_at_` prefix): never an API call.
+const SIMKL_TOKEN_URL = 'https://api.simkl.com/oauth2/token';
+// Refresh a day before the access token runs out (Simkl's advice), never
+// on a timer.
+const SIMKL_REFRESH_AHEAD_MS = 24 * 60 * 60 * 1000;
+
+export type SimklKind = 'v2' | 'legacy';
+
+export interface SimklClient {
+  kind: SimklKind;
+  clientId: string;
+  // False for a V1 connection when this server has no V1 client id: the
+  // person has to reconnect.
+  usable: boolean;
+  // The grant may write history (V2 with media:write only).
+  write: boolean;
+}
+
+function simklKind(conn: WatchlistConn | null | undefined): SimklKind {
+  if (!conn) return 'legacy';
+  if (conn['auth'] === 'v2') return 'v2';
+  return typeof conn.access_token === 'string' && conn.access_token.startsWith('simkl_at_') ? 'v2' : 'legacy';
+}
+
+function simklClient(conn: WatchlistConn | null | undefined): SimklClient {
+  const kind = simklKind(conn);
+  if (kind === 'v2') {
+    const clientId = String(process.env['SIMKL_CLIENT_ID'] || '');
+    const scope = String((conn && conn['scope']) || '');
+    return { kind, clientId, usable: Boolean(clientId), write: Boolean(clientId) && scope.split(/\s+/).includes('media:write') };
+  }
+  const clientId = String(process.env['SIMKL_V1_CLIENT_ID'] || '');
+  return { kind, clientId, usable: Boolean(clientId), write: false };
+}
+
+export interface SimklRefreshDeps {
+  post?: (url: string, body: string, options: Record<string, unknown>) => Promise<{ data?: unknown }>;
+  now?: () => number;
+}
+
+// One refresh per setup at a time. Simkl replaces the grant's access token
+// on every refresh, so two refreshers on the same grant cut each other off:
+// concurrent catalogue opens share this flight, and a refresh first re-reads
+// the stored connection in case another request (or process) already did it.
+const simklRefreshInFlight = new Map<string, Promise<WatchlistConn | null>>();
+
+function simklTokenFresh(conn: WatchlistConn | null, now: number): boolean {
+  return Boolean(conn && conn.access_token && (!conn.expires_at || Number(conn.expires_at) - now > SIMKL_REFRESH_AHEAD_MS));
+}
+
+async function refreshSimklForSetup(store: SetupStoreLike, uuid: string, conn: WatchlistConn, deps: SimklRefreshDeps = {}): Promise<WatchlistConn | null> {
+  const flightKey = `${uuid}:simkl`;
+  const running = simklRefreshInFlight.get(flightKey);
+  if (running) return running;
+  const now = deps.now || Date.now;
+  const post = deps.post || ((url: string, body: string, options: Record<string, unknown>) => axios.post(url, body, options));
+  const flight = (async (): Promise<WatchlistConn | null> => {
+    try {
+      const stored = readWatchlist(await store.resolveByUuid(uuid).catch(() => null), 'simkl');
+      if (stored && stored.access_token !== conn.access_token && simklTokenFresh(stored, now())) return stored;
+      const base = stored && simklKind(stored) === 'v2' ? stored : conn;
+      if (!base.refresh_token) return null;
+      const res = await post(SIMKL_TOKEN_URL, new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: String(base.refresh_token),
+        client_id: String(process.env['SIMKL_CLIENT_ID'] || ''),
+        client_secret: String(process.env['SIMKL_CLIENT_SECRET'] || ''),
+      }).toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': simklUserAgent() }, timeout: 15000 });
+      const data = asRecord(res?.data);
+      if (typeof data['access_token'] !== 'string' || !data['access_token']) throw new Error('Simkl refresh returned no access token');
+      const expiresIn = Number(data['expires_in'] || 0);
+      const next: WatchlistConn = {
+        ...base,
+        access_token: data['access_token'] as string,
+        // Non-rotating today: the same refresh token comes back. Keep
+        // whatever Simkl sends, in case that changes.
+        refresh_token: typeof data['refresh_token'] === 'string' && data['refresh_token'] ? data['refresh_token'] as string : base.refresh_token,
+        expires_at: expiresIn ? now() + expiresIn * 1000 : null,
+        client_id: process.env['SIMKL_CLIENT_ID'],
+        auth: 'v2',
+        ...(typeof data['scope'] === 'string' && data['scope'] ? { scope: data['scope'] } : {}),
+      };
+      const opened = await store.resolveByUuid(uuid).catch(() => null);
+      if (opened) await store.save(uuid, { keys: mergeWatchlistKeys(asRecord(opened.keys), 'simkl', next) }).catch(() => {});
+      return next;
+    } catch {
+      // Someone else may have refreshed in the meantime: re-read first.
+      const reread = readWatchlist(await store.resolveByUuid(uuid).catch(() => null), 'simkl');
+      if (reread && reread.access_token !== conn.access_token && simklTokenFresh(reread, now())) return reread;
+      // Still inside its lifetime: keep using it and try again next time.
+      if (conn.expires_at && Number(conn.expires_at) > now()) return conn;
+      return null;
+    } finally {
+      simklRefreshInFlight.delete(flightKey);
+    }
+  })();
+  simklRefreshInFlight.set(flightKey, flight);
+  return flight;
+}
+
+// A V2 connection close to expiry is refreshed (and saved); anything else
+// comes back as it is. Null = the connection cannot be used any more.
+async function liveSimklConn(store: SetupStoreLike | null, uuid: string | null, conn: WatchlistConn, deps: SimklRefreshDeps = {}): Promise<WatchlistConn | null> {
+  const now = (deps.now || Date.now)();
+  if (simklKind(conn) !== 'v2') return conn;
+  if (simklTokenFresh(conn, now)) return conn;
+  if (store && uuid && conn.refresh_token) return refreshSimklForSetup(store, uuid, conn, deps);
+  return conn.expires_at && Number(conn.expires_at) > now ? conn : null;
+}
+
+function simklUserAgent(): string {
+  try { return `LeLibrary/${(require('../../../package.json') as { version: string }).version}`; } catch { return 'LeLibrary'; }
+}
+
+export interface SimklAuthResolved { token: string; clientId: string; kind: SimklKind; write: boolean }
+
+// The Simkl credentials for one engine config (the setup's keys merged over
+// its config): refreshed first when a V2 token is close to expiry, saved back
+// into the sealed keys. Null when there is no usable connection.
+async function simklAuthForConfig(config: Record<string, unknown>, deps: SimklRefreshDeps & { store?: SetupStoreLike | null } = {}): Promise<SimklAuthResolved | null> {
+  const conn = asRecord(asRecord(config['watchlist'])['simkl']) as WatchlistConn;
+  if (typeof conn.access_token !== 'string' || !conn.access_token) return null;
+  const scope = (config as { __configScope?: { type?: string; uuid?: string } }).__configScope;
+  const uuid = scope && scope.type === 'config' && typeof scope.uuid === 'string' ? scope.uuid : null;
+  let store = deps.store === undefined ? null : deps.store;
+  if (deps.store === undefined && uuid && simklKind(conn) === 'v2') {
+    store = await (require('./runtime.ts') as { getSetupStore: () => Promise<SetupStoreLike | null> }).getSetupStore().catch(() => null);
+  }
+  const live = await liveSimklConn(store, uuid, conn, deps);
+  if (!live || !live.access_token) return null;
+  const client = simklClient(live);
+  if (!client.usable) return null;
+  return { token: live.access_token, clientId: client.clientId, kind: client.kind, write: client.write };
+}
+
 function baseOrigin(): string {
   return (process.env['BASE_URL'] || '').replace(/\/+$/, '');
 }
@@ -170,6 +313,10 @@ async function setupWatchlistConn(
   if (provider === 'trakt' && conn.refresh_token && conn.expires_at && Number(conn.expires_at) <= Date.now() + 60000) {
     return refreshTraktForSetup(store, opened.uuid, conn);
   }
+  if (provider === 'simkl') {
+    const live = await liveSimklConn(store, opened.uuid, conn);
+    return live && simklClient(live).usable ? live : null;
+  }
   return conn;
 }
 
@@ -182,6 +329,12 @@ export interface ConnectionsApi {
   dropEnvelopeKey: (current: Record<string, unknown>, envelope: string, key: string) => Record<string, unknown>;
   setupWatchlistConn: (store: SetupStoreLike, installToken: unknown, provider: string) => Promise<WatchlistConn | null>;
   refreshNuvioToken: PushApi['refreshNuvioToken'];
+  simklKind: typeof simklKind;
+  simklClient: typeof simklClient;
+  refreshSimklForSetup: typeof refreshSimklForSetup;
+  liveSimklConn: typeof liveSimklConn;
+  simklAuthForConfig: typeof simklAuthForConfig;
+  SIMKL_REFRESH_AHEAD_MS: number;
 }
 
 module.exports = {
@@ -193,4 +346,10 @@ module.exports = {
   dropEnvelopeKey,
   setupWatchlistConn,
   refreshNuvioToken,
+  simklKind,
+  simklClient,
+  refreshSimklForSetup,
+  liveSimklConn,
+  simklAuthForConfig,
+  SIMKL_REFRESH_AHEAD_MS,
 } satisfies ConnectionsApi;

@@ -8,7 +8,8 @@
 // Home rows pushed before v6 fill in without a re-push. Trakt is no longer
 // offered (an API app needs Trakt VIP); its old rows answer empty.
 
-export type UserListProvider = 'simkl' | 'mdblist' | 'anilist';
+// `history` (v6): Continue Watching / Up Next from the Watch history card.
+export type UserListProvider = 'simkl' | 'mdblist' | 'anilist' | 'history';
 export type UserListType = 'movie' | 'series';
 
 export interface UserListRef {
@@ -16,6 +17,7 @@ export interface UserListRef {
   // simkl: upnext|airing|plantowatch|watching|completed
   // mdblist: watchlist|upnext|list.{id}
   // anilist: current|planning|completed
+  // history: continue|upnext
   list: string;
   type: UserListType;
   // The old torbox-watchlist-* id this ref was parsed from, if any.
@@ -42,9 +44,11 @@ const ROW_DEFS: UserListRowDef[] = [
   { provider: 'anilist', list: 'current', types: ['series', 'movie'], title: 'AniList Watching' },
   { provider: 'anilist', list: 'planning', types: ['series', 'movie'], title: 'AniList Plan to Watch' },
   { provider: 'anilist', list: 'completed', types: ['series', 'movie'], title: 'AniList Completed' },
+  { provider: 'history', list: 'continue', types: ['movie', 'series'], title: 'Continue Watching' },
+  { provider: 'history', list: 'upnext', types: ['series'], title: 'Up Next' },
 ];
 
-const ID_PATTERN = /^lelibrary-user-(simkl|mdblist|anilist)-([a-z]+|list\.\d{1,12})-(movie|series)$/;
+const ID_PATTERN = /^lelibrary-user-(simkl|mdblist|anilist|history)-([a-z]+|list\.\d{1,12})-(movie|series)$/;
 const ALIAS_PATTERN = /^torbox-watchlist-([a-z]+)-(movie|series)$/;
 const ALIAS_TARGET: Record<string, { provider: UserListProvider; list: string }> = {
   simkl: { provider: 'simkl', list: 'plantowatch' },
@@ -106,7 +110,7 @@ function watchlistToken(config: Record<string, unknown>, provider: string): stri
   return token;
 }
 
-export interface UserListServices { simkl: boolean; mdblist: boolean; anilist: boolean }
+export interface UserListServices { simkl: boolean; mdblist: boolean; anilist: boolean; history: boolean }
 
 // Which personal list services one engine config can serve.
 function userListServices(config: Record<string, unknown> | null | undefined): UserListServices {
@@ -116,6 +120,8 @@ function userListServices(config: Record<string, unknown> | null | undefined): U
     mdblist: typeof c['mdblistKey'] === 'string' && Boolean((c['mdblistKey'] as string).trim()),
     // AniList rows need a connection: there is no username path (v6).
     anilist: Boolean(watchlistToken(c, 'anilist')),
+    // Continue Watching / Up Next: at least one history source switched on.
+    history: (require('../watch-history/config.ts') as { effectiveWatchHistory: (c: Record<string, unknown>) => { read: unknown[] } }).effectiveWatchHistory(c).read.length > 0,
   };
 }
 

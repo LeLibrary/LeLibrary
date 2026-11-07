@@ -175,6 +175,7 @@ test('identities prefer the name stored with the connection; older connections s
   }, context(none));
   assert.deepEqual(out, { simkl: 'Stored', anilist: 'AniStored' });
   assert.equal(none.calls.length, 0);
+  process.env.SIMKL_V1_CLIENT_ID ||= 'synthetic-simkl-v1';
   const lookup = fakeHttp((_method, url) => (url.endsWith('/users/settings') ? { data: { user: { name: 'Looked' } } } : httpError(404)));
   assert.deepEqual(await userLists.userListIdentities({ watchlist: { simkl: { access_token: SIMKL_TOKEN_2 } } }, context(lookup)), { simkl: 'Looked' });
   assert.equal(lookup.calls[0].method, 'GET', 'Simkl /users/settings is a GET');

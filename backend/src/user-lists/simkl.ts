@@ -1,9 +1,11 @@
 'use strict';
 // Simkl personal rows: Plan to Watch, Watching, Completed, Up Next and
-// Airing Next, read with the setup's own Simkl connection (the existing V1
-// app: SIMKL_CLIENT_ID + the user's token in keys.watchlist.simkl).
+// Airing Next, read with the setup's own Simkl connection
+// (keys.watchlist.simkl). New connections are Simkl AUTH V2 (SIMKL_CLIENT_ID,
+// per-user quota, refreshed in setup/connections.ts); connections made with
+// the old V1 app keep reading through SIMKL_V1_CLIENT_ID until they reconnect.
 //
-// Quota care (free accounts get ~500 calls a day): each status list is one
+// Quota care (per user on V2; V1 shared one allowance per app): each status list is one
 // cached bucket per user, fresh for an hour; after that one call to
 // /sync/activities decides whether anything changed before a list is pulled
 // again. Airing Next joins the public calendar files (no user token, one
@@ -270,10 +272,11 @@ async function simklUsername(ctx: UserListContext, auth: SimklAuth): Promise<str
 
 export interface SimklListsApi {
   entriesFrom: typeof entriesFrom;
+  simklEntries: typeof bucket;
   calendarFrom: typeof calendarFrom;
   simklRowItems: typeof simklRowItems;
   simklUsername: typeof simklUsername;
   FRESH_MS: number;
 }
 
-module.exports = { entriesFrom, calendarFrom, simklRowItems, simklUsername, FRESH_MS } satisfies SimklListsApi;
+module.exports = { entriesFrom, simklEntries: bucket, calendarFrom, simklRowItems, simklUsername, FRESH_MS } satisfies SimklListsApi;

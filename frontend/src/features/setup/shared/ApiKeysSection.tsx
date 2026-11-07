@@ -215,6 +215,11 @@ export function ConnectedAccounts({ connections, identities, defaultOpen }: {
               {...(provider === 'anilist' ? { label: 'Connect AniList' } : {})}
             />
             {provider === 'anilist' && <p className="setup-hint pc-note">Not affiliated with AniList.</p>}
+            {provider === 'simkl' && connected && connections.status?.simkl?.legacy === true && !staged && (
+              connections.status.simkl.reconnect === true
+                ? <p className="setup-hint pc-note" data-simkl-legacy="reconnect">Simkl changed how apps sign in. Disconnect and connect Simkl again to bring your rows back.</p>
+                : <p className="setup-hint pc-note" data-simkl-legacy="soon">Reconnect Simkl to keep it working after 2027. Disconnect, then connect again: it takes a few seconds.</p>
+            )}
           </ConnectCard>
         );
       })}

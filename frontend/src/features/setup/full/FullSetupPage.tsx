@@ -7,6 +7,8 @@ import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { useWizardStep } from '@/features/setup/shared/WizardStepper';
 import { RdCatalogSelect } from '@/features/setup/shared/sections';
 import { ApiKeysAccordion, IntegrationsAccordion, useSetupConnections } from '@/features/setup/shared/ApiKeysSection';
+import { WatchHistorySection, historyAvailabilityFrom, historyRowsOn } from '@/features/setup/shared/WatchHistorySection';
+import { watchHistoryForConfig } from '@/features/setup/shared/watch-history';
 import { BadgePackStrip, StreamStylePicker, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
 import { useTierPreview } from '@/features/setup/shared/tier/TierPreview';
 import { TierStep } from '@/features/setup/shared/tier/TierChrome';
@@ -192,12 +194,23 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
   // setup has (draft connects, typed MDBList key, saved connections) and
   // where its MDBList lists come from.
   const connections = useSetupConnections(edit, watchlist, setWatchlist);
+  // Watch history (v6): the sources this setup has, for the card and the
+  // Continue Watching / Up Next shelves.
+  const historyAvailable = historyAvailabilityFrom({
+    nuvioLogin: Boolean(pushConn?.platform === 'nuvio' && platform === 'nuvio' && pushConn.nuvioToken)
+      || Boolean(edit && edit.pushTarget === 'Nuvio' && edit.savedAccount),
+    simkl: connections.connected('simkl'),
+    simklReconnect: connections.status?.simkl?.reconnect === true,
+    anilist: connections.connected('anilist'),
+    mdblist: Boolean((keys.mdblistKey ?? '').trim()) || Boolean(edit?.savedServices.includes('mdblistKey')),
+  });
   const userLists = useUserLists({
     savedSetup: edit ? { uuid: edit.uuid, editToken: edit.editToken } : null,
     status: connections.status,
     savedServices: edit?.savedServices ?? [],
     watchlistDraft: watchlist,
     mdblistKey: keys.mdblistKey ?? '',
+    history: historyRowsOn(meta.watchHistory, historyAvailable),
   });
   const [confirmReset, setConfirmReset] = useState(false);
   // The Home layout sheet (the shell's Arrange home).
@@ -296,6 +309,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
         torboxSources: meta.torboxSources,
         searchScope: meta.searchScope,
         searchOptions: searchOptionsForConfig(meta.searchOptions) ?? undefined,
+        watchHistory: watchHistoryForConfig(meta.watchHistory) ?? undefined,
         streamNotices: meta.notices ? 'on' : 'off',
         streamNoticeTypes: meta.noticeTypes,
         filterResolutions: filterSets.resolutions,
@@ -318,7 +332,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
   // The Preview reads the same draft creation saves (its config, never its keys).
   const preview = useTierPreview(edit, {
     tier: 'full', platform, config: () => buildDraft().config, keys, formatting,
-    connected: (['simkl', 'anilist'] as const).filter((provider) => connections.linked(provider)),
+    connected: [...(['simkl', 'anilist'] as const).filter((provider) => connections.linked(provider)), ...(historyAvailable.nuvio ? ['nuvio'] : [])],
     badgePack: { pack: badgePack, url: badgeUrl }, posterStyle: posters.provider, name,
   }, previewOpen);
 
@@ -460,6 +474,10 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
               <div className="qs-catalogs"><RdCatalogSelect value={rdCatalog} onChange={setRdCatalog} /></div>
             </ApiKeysAccordion>
             <IntegrationsAccordion edit={edit} connections={connections} />
+            <WatchHistorySection
+              value={meta.watchHistory} onChange={(watchHistory) => setMeta({ ...meta, watchHistory })}
+              available={historyAvailable} simklLegacy={connections.status?.simkl?.legacy === true}
+            />
             <Accordion title="Content filters" icon="🎛️" summary={contentFilterSummaryParts(meta)}>
               <ContentFiltersSection draft={meta} onChange={setMeta} />
             </Accordion>

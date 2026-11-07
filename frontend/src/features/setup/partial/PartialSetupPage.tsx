@@ -10,6 +10,8 @@ import { PublishPanel } from '@/features/setup/shared/PublishPanel';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { useWizardStep } from '@/features/setup/shared/WizardStepper';
 import { ApiKeysAccordion, IntegrationsAccordion, useSetupConnections } from '@/features/setup/shared/ApiKeysSection';
+import { WatchHistorySection, historyAvailabilityFrom, historyRowsOn } from '@/features/setup/shared/WatchHistorySection';
+import { watchHistoryForConfig } from '@/features/setup/shared/watch-history';
 import { BadgePackStrip, StreamStylePicker, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
 import { INSTALL_FORM_ID, TierInstall } from '@/features/setup/shared/tier/TierInstall';
 import { useTierPreview } from '@/features/setup/shared/tier/TierPreview';
@@ -156,13 +158,6 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
   // setup has (draft connects, typed MDBList key, saved connections) and
   // where its MDBList lists come from.
   const connections = useSetupConnections(edit, watchlist, setWatchlist);
-  const userLists = useUserLists({
-    savedSetup: edit ? { uuid: edit.uuid, editToken: edit.editToken } : null,
-    status: connections.status,
-    savedServices: edit?.savedServices ?? [],
-    watchlistDraft: watchlist,
-    mdblistKey: keys.mdblistKey ?? '',
-  });
   const [addons, setAddons] = useState<string[]>(restored?.addons ?? []);
   const [customStreams, setCustomStreams] = useState<CustomStreamRow[]>(restored?.customStreams ?? []);
   // Nuvio player choices. Off by default: an untouched setup leaves whatever
@@ -184,6 +179,24 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
   // desk; it still has to survive a refresh like every other choice.
   const [platform, setPlatform] = useState<'nuvio' | 'stremio'>(restored?.platform ?? 'nuvio');
   const [connection, setConnection] = useState<PlatformConnection | null>(restored?.pushConn ?? null);
+  // Watch history (v6): the sources this setup has, for the card and the
+  // Continue Watching / Up Next shelves.
+  const historyAvailable = historyAvailabilityFrom({
+    nuvioLogin: Boolean(connection?.platform === 'nuvio' && platform === 'nuvio' && connection.nuvioToken)
+      || Boolean(edit && edit.pushTarget === 'Nuvio' && edit.savedAccount),
+    simkl: connections.connected('simkl'),
+    simklReconnect: connections.status?.simkl?.reconnect === true,
+    anilist: connections.connected('anilist'),
+    mdblist: Boolean((keys.mdblistKey ?? '').trim()) || Boolean(edit?.savedServices.includes('mdblistKey')),
+  });
+  const userLists = useUserLists({
+    savedSetup: edit ? { uuid: edit.uuid, editToken: edit.editToken } : null,
+    status: connections.status,
+    savedServices: edit?.savedServices ?? [],
+    watchlistDraft: watchlist,
+    mdblistKey: keys.mdblistKey ?? '',
+    history: historyRowsOn(meta.watchHistory, historyAvailable),
+  });
   // Settings the Nuvio profile already has are filled in after sign-in.
   useNuvioCreatePrefill({
     enabled: !edit, platform, connection: connection, onConnection: setConnection,
@@ -299,6 +312,7 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
         torboxSources: meta.torboxSources,
         searchScope: meta.searchScope,
         searchOptions: searchOptionsForConfig(meta.searchOptions) ?? undefined,
+        watchHistory: watchHistoryForConfig(meta.watchHistory) ?? undefined,
         streamNotices: meta.notices ? 'on' : 'off',
         streamNoticeTypes: meta.noticeTypes,
         filterResolutions: filterSets.resolutions,
@@ -321,7 +335,7 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
   // The Preview reads the same draft creation saves (its config, never its keys).
   const preview = useTierPreview(edit, {
     tier: 'partial', platform, config: () => buildDraft().config, keys, formatting,
-    connected: (['simkl', 'anilist'] as const).filter((provider) => connections.linked(provider)),
+    connected: [...(['simkl', 'anilist'] as const).filter((provider) => connections.linked(provider)), ...(historyAvailable.nuvio ? ['nuvio'] : [])],
     badgePack: { pack: badgePack, url: badgePack === 'custom' ? customBadgeUrl : '' }, posterStyle: posters.provider, name,
   }, previewOpen);
 
@@ -465,6 +479,10 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
           <div className="qs-accordions qs-setup-page">
             <ApiKeysAccordion keys={keys} onKeys={setKeys} edit={edit} revealSaved={revealEdit} />
             <IntegrationsAccordion edit={edit} connections={connections} />
+            <WatchHistorySection
+              value={meta.watchHistory} onChange={(watchHistory) => setMeta({ ...meta, watchHistory })}
+              available={historyAvailable} simklLegacy={connections.status?.simkl?.legacy === true}
+            />
             <Accordion title="Content filters" icon="🎛️" summary={contentFilterSummaryParts(meta)}>
               <ContentFiltersSection draft={meta} onChange={setMeta} />
             </Accordion>

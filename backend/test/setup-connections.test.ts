@@ -59,7 +59,13 @@ test('setup watchlist reads resolve install tokens without network', async () =>
     async resolveByUuid() { return null; },
     async save() { return null; },
   };
+  // A V1-era connection reads through the V1 app; without its id it needs a reconnect.
+  const before = process.env.SIMKL_V1_CLIENT_ID;
+  delete process.env.SIMKL_V1_CLIENT_ID;
+  assert.equal(await setupWatchlistConn(store, 'uuid.secret', 'simkl'), null);
+  process.env.SIMKL_V1_CLIENT_ID = 'synthetic-simkl-v1';
   assert.deepEqual(await setupWatchlistConn(store, 'uuid.secret', 'simkl'), { access_token: 'live' });
+  if (before === undefined) delete process.env.SIMKL_V1_CLIENT_ID; else process.env.SIMKL_V1_CLIENT_ID = before;
   assert.equal(await setupWatchlistConn(store, 'uuid.secret', 'trakt'), null);
   assert.equal(await setupWatchlistConn(store, 'nope', 'simkl'), null);
 });

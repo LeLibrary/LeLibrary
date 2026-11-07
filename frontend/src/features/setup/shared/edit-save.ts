@@ -7,6 +7,7 @@ import {
   type CustomStreamRow,
 } from '@/features/setup/shared/config-contract';
 import { searchOptionsForConfig } from '@/features/setup/shared/search-options';
+import { watchHistoryForConfig } from '@/features/setup/shared/watch-history';
 import { cleanExcludeCategories } from '@/features/setup/shared/content-filters';
 import type { FormattingDraft } from '@/features/setup/shared/FormattingSection';
 import type { PostersDraft } from '@/features/setup/shared/PostersSection';
@@ -175,6 +176,10 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
     const searchOptions = searchOptionsForConfig(input.meta.searchOptions);
     if (searchOptions) config.searchOptions = searchOptions;
     else clearConfig.push('searchOptions');
+    // Watch history at its defaults: clear it, never store the defaults.
+    const watchHistory = input.meta.watchHistory ? watchHistoryForConfig(input.meta.watchHistory) : null;
+    if (watchHistory) config.watchHistory = watchHistory;
+    else clearConfig.push('watchHistory');
     config.streamNotices = input.meta.notices ? 'on' : 'off';
     config.streamNoticeTypes = [...input.meta.noticeTypes];
   }

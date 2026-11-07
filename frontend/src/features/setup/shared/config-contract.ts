@@ -192,6 +192,8 @@ export interface SetupConfigDraft {
   searchScope?: string;
   // Compact search options (shared/search-options.ts), defaults left out.
   searchOptions?: Record<string, unknown> | undefined;
+  // Compact watch history settings (shared/watch-history.ts), defaults left out.
+  watchHistory?: Record<string, unknown> | undefined;
   streamNotices?: string;
   streamNoticeTypes?: string[];
   filterResolutions?: string[];
@@ -472,6 +474,7 @@ export function pruneConfig(draft: SetupConfigDraft): Record<string, unknown> {
   if (torboxSources.length > 0) out.torboxSources = torboxSources;
   if (draft.searchScope && draft.searchScope !== 'combined') out.searchScope = draft.searchScope;
   if (draft.searchOptions && Object.keys(draft.searchOptions).length > 0) out.searchOptions = { ...draft.searchOptions };
+  if (draft.watchHistory && Object.keys(draft.watchHistory).length > 0) out.watchHistory = { ...draft.watchHistory };
   if (draft.streamNotices === 'off') out.streamNotices = 'off';
   if (draft.streamNoticeTypes && !sameNoticeTypes(draft.streamNoticeTypes)) {
     out.streamNoticeTypes = [...draft.streamNoticeTypes];

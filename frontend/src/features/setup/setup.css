@@ -162,6 +162,11 @@ p.setup-note-pill { width: fit-content; max-width: 100%; box-sizing: border-box;
 .cf-categories { margin: 18px 0 6px; }
 .cf-categories h4 { margin: 0 0 4px; font-size: 0.84rem; font-weight: 600; }
 .cf-categories .setup-hint { margin: 0 0 12px; }
+/* Watch history (v6): one block per source, then Hide watched. */
+.wh-sources { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; margin: 10px 0 12px; }
+.wh-source { box-sizing: border-box; padding: 6px 0 2px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.wh-source:first-child { border-top: 0; }
+.wh-source h4 { margin: 4px 0 2px; font-size: 0.84rem; font-weight: 600; }
 .cf-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

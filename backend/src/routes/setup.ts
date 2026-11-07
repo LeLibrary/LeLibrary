@@ -247,6 +247,17 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     return rest;
   }
 
+  // Watch history settings (v6) are stored compact: only what differs from
+  // the defaults. A value equal to the defaults is never written; on an
+  // edit save it clears the stored key instead (`cleared`).
+  function withCompactWatchHistory(config: Record<string, unknown> | undefined): { config: Record<string, unknown> | undefined; cleared: boolean } {
+    if (!config || !('watchHistory' in config)) return { config, cleared: false };
+    const { compactWatchHistory } = require('../watch-history/config.ts') as { compactWatchHistory: (raw: unknown) => Record<string, unknown> | null };
+    const compact = compactWatchHistory(config['watchHistory']);
+    const { watchHistory: _raw, ...rest } = config;
+    return compact ? { config: { ...rest, watchHistory: compact }, cleared: false } : { config: rest, cleared: true };
+  }
+
   // Bot gate for the two password-bearing endpoints (v6): edit unlock and
   // setup creation. Managed Turnstile widget shown on both screens; enforced
   // only when the operator set a site key + secret + hostnames (and did not
@@ -297,7 +308,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       res.status(400).json({ error: `Tier must be one of: ${TIERS.join(', ')}` });
       return;
     }
-    const cleanedConfig = withoutAnilistUser(config);
+    const cleanedConfig = withCompactWatchHistory(withoutAnilistUser(config)).config;
     // A Nuvio/Stremio login made on the Destination step is sealed with the
     // setup at creation, so it survives even if the person never presses
     // push (the end screen can be closed). Only well-formed sessions are kept.
@@ -580,7 +591,8 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       return;
     }
     if (tier !== undefined && !TIERS.includes(tier as never)) { res.status(400).json({ error: 'Invalid tier' }); return; }
-    const cleanedConfig = withoutAnilistUser(config);
+    const history = withCompactWatchHistory(withoutAnilistUser(config));
+    const cleanedConfig = history.config;
     limiter.succeed(clientIp(req), uuid);
     // Watchlist connects and disconnects staged on the edit page (v6): a
     // pending connect commits only for the edit session that signed in
@@ -596,6 +608,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     if (opened.config && typeof opened.config === 'object' && 'anilistUser' in (opened.config as Record<string, unknown>)) {
       saveClearConfig = [...new Set([...(saveClearConfig ?? []), 'anilistUser'])];
     }
+    if (history.cleared) saveClearConfig = [...new Set([...(saveClearConfig ?? []), 'watchHistory'])];
     if (Object.keys(staged.changes).length > 0) {
       const openedKeys = (opened.keys ?? {}) as Record<string, unknown>;
       const currentWatchlist = (openedKeys['watchlist'] && typeof openedKeys['watchlist'] === 'object' ? openedKeys['watchlist'] : {}) as Record<string, unknown>;

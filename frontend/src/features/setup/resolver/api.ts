@@ -214,7 +214,9 @@ export type WatchlistProvider = 'simkl' | 'trakt' | 'anilist';
 // `username`: the account name stored at connect time (v6, display only;
 // absent on older connections and servers).
 export interface WatchlistState {
-  simkl: { connected: boolean; configured: boolean; username?: string };
+  // `legacy` (v6): connected through Simkl's old V1 app (reconnect before
+  // 2027); `reconnect`: this server can no longer use it at all.
+  simkl: { connected: boolean; configured: boolean; username?: string; legacy?: boolean; reconnect?: boolean };
   // `legacy`: Trakt is kept only for setups already connected (v6).
   trakt: { connected: boolean; configured: boolean; legacy?: boolean; username?: string };
   // AniList (v6): Connect only. Absent on older servers.
@@ -269,6 +271,9 @@ export interface WatchlistDraftConn {
   client_id?: string | null;
   // The account name the OAuth callback read (display only, not a secret).
   username?: string;
+  // Simkl (v6): 'v2' for an AUTH V2 grant, and the scopes it was granted.
+  auth?: string;
+  scope?: string;
 }
 
 export type WatchlistDraftMap = Partial<Record<WatchlistProvider, WatchlistDraftConn>>;

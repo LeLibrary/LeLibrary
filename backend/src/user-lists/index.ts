@@ -25,12 +25,14 @@ const anilist = require('./anilist.ts') as AnilistListsApi;
 
 type Config = Record<string, unknown>;
 
-function simklAuth(config: Config): { token: string; clientId: string } {
-  const conn = (config['watchlist'] && typeof config['watchlist'] === 'object' ? (config['watchlist'] as Config)['simkl'] : null) as Config | null;
-  return {
-    token: rows.watchlistToken(config, 'simkl'),
-    clientId: String(process.env['SIMKL_CLIENT_ID'] || (conn && conn['client_id']) || ''),
-  };
+// The setup's Simkl credentials (v6): a V2 connection uses SIMKL_CLIENT_ID
+// and is refreshed when close to expiry (single-flight, saved back); an old
+// V1 connection uses SIMKL_V1_CLIENT_ID, or nothing (reconnect needed).
+async function simklAuth(config: Config): Promise<{ token: string; clientId: string } | null> {
+  if (!rows.watchlistToken(config, 'simkl')) return null;
+  const { simklAuthForConfig } = require('../setup/connections.ts') as { simklAuthForConfig: (c: Config) => Promise<{ token: string; clientId: string } | null> };
+  const auth = await simklAuthForConfig(config).catch(() => null);
+  return auth ? { token: auth.token, clientId: auth.clientId } : null;
 }
 
 function anilistAuth(config: Config): { token: string } {
@@ -55,9 +57,15 @@ async function buildUserListCatalog(input: UserListCatalogInput, ctxIn?: Partial
   const config = input.config || {};
   let items: ListItem[] = [];
   try {
-    if (ref.provider === 'simkl') items = await simkl.simklRowItems(ctx, simklAuth(config), ref.list, ref.type);
+    if (ref.provider === 'simkl') {
+      const auth = await simklAuth(config);
+      items = auth ? await simkl.simklRowItems(ctx, auth, ref.list, ref.type) : [];
+    }
     else if (ref.provider === 'mdblist') items = await mdblist.mdblistRowItems(ctx, String(config['mdblistKey'] || '').trim(), ref.list, ref.type);
-    else if (ref.provider === 'anilist') items = await anilist.anilistRowItems(ctx, anilistAuth(config), ref.list, ref.type, metaDeps?.idMap ? { idMap: metaDeps.idMap as never } : {});
+    else if (ref.provider === 'history') {
+      const { historyRowItems } = require('../watch-history/index.ts') as { historyRowItems: (c: Config, l: string, t: 'movie' | 'series') => Promise<ListItem[]> };
+      items = await historyRowItems(config, ref.list, ref.type);
+    } else if (ref.provider === 'anilist') items = await anilist.anilistRowItems(ctx, anilistAuth(config), ref.list, ref.type, metaDeps?.idMap ? { idMap: metaDeps.idMap as never } : {});
   } catch (err) {
     ctx.log(`[user-lists] ${ref.provider} ${ref.list.startsWith('list.') ? 'list' : ref.list} failed: status=${rt.statusOf(err) || 'error'}`);
     items = [];
@@ -119,7 +127,7 @@ async function userListIdentities(config: Config, ctxIn?: Partial<UserListContex
   ]);
   const [mdb, sim, ani] = await Promise.all([
     services.mdblist ? within(mdblist.mdblistUsername(ctx, String(config['mdblistKey'] || '').trim())) : null,
-    services.simkl ? (storedUsername(config, 'simkl') || within(simkl.simklUsername(ctx, simklAuth(config)))) : null,
+    services.simkl ? (storedUsername(config, 'simkl') || within(simklAuth(config).then((auth) => (auth ? simkl.simklUsername(ctx, auth) : null)))) : null,
     services.anilist ? (storedUsername(config, 'anilist') || within(anilist.anilistName(ctx, anilistAuth(config)))) : null,
   ]);
   const out: UserListIdentities = {};

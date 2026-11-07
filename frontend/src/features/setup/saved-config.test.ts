@@ -127,7 +127,7 @@ describe('saved config mapping', () => {
     expect(drafts.rdCatalog).toBe('separate');
     expect(drafts.meta).toEqual({
       lang: 'fr-FR', sortBy: 'ano', mainMetadata: true, hideAnime: true, hideAdult: true, excludeCategories: ['horror'], torboxSources: ['usenet'],
-      searchScope: 'library', searchOptions: EMPTY_METADATA_EXTRAS.searchOptions, notices: false, noticeTypes: ['none'],
+      searchScope: 'library', searchOptions: EMPTY_METADATA_EXTRAS.searchOptions, watchHistory: EMPTY_METADATA_EXTRAS.watchHistory, notices: false, noticeTypes: ['none'],
     });
   });
 });

@@ -169,6 +169,28 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
     const hideAnime = filterState.hideAnime;
     const filterTag = filterState.hideAdult || filterState.excludeCategories.length ? JSON.stringify(filterState) : '';
 
+    // Watch history (v6). A catalogue request marks the setup in use (its
+    // opt-in history sync is scheduled from here, never for idle setups).
+    // Hide watched filters this one response after every cache read below:
+    // the watched set is per user and never enters a shared cache. The
+    // filtered page may be shorter than the cached one, and its client
+    // cache window is kept short so a newly watched title leaves soon.
+    const watchHistory = require('../watch-history/index.ts');
+    watchHistory.noteActive(config);
+    const hideWatched = await timeSpan(req.perfTrace, 'watch-history', () => watchHistory.hideWatchedFilter(config, catalogId)).catch(() => null);
+    if (hideWatched) {
+      const send = res.json.bind(res);
+      res.json = (body: any) => {
+        if (body && Array.isArray(body.metas)) {
+          body = { ...body, metas: hideWatched(body.metas) };
+          if (typeof body.cacheMaxAge === 'number' && body.cacheMaxAge > 300) body.cacheMaxAge = 300;
+          if (typeof body.staleRevalidate === 'number' && body.staleRevalidate > 300) body.staleRevalidate = 300;
+          if (!/no-store|no-cache/.test(String(res.getHeader('Cache-Control') || ''))) setPrivateResponseCache(res, Math.min(300, Number(body.cacheMaxAge) || 300));
+        }
+        return send(body);
+      };
+    }
+
     const customCatalogMatch = catalogId.match(/^custom-stream-(movies|series)$/);
     if (customCatalogMatch) {
       const type = customCatalogMatch[1] === 'movies' ? 'movie' : 'series';

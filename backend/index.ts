@@ -42,6 +42,8 @@ const server = app.listen(PORT, () => {
   // module registers its handler on require, so it must load before startJobs().
   require('./src/setup/pending-push.ts');
   require('./src/setup/franchise-autopush.ts');
+  // Watch history sync (v6): Nuvio -> Simkl / MDBList / AniList, opt-in.
+  require('./src/watch-history/sync.ts');
   require('./src/runtime/jobs.ts').startJobs();
   // LeLibrary's own folder art (hosted, needs the server's TMDB key): hourly
   // Live cover redraws and the daily "has this Subject changed?" check.

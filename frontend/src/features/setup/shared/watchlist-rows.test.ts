@@ -57,12 +57,13 @@ describe('"Your lists" rows in the pickers', () => {
   });
 
   it('services come from the draft (create) or the saved setup (edit)', () => {
-    expect(userListServicesFrom({}, null)).toEqual({ simkl: false, mdblist: false, anilist: false, trakt: false });
+    expect(userListServicesFrom({}, null)).toEqual({ simkl: false, mdblist: false, anilist: false, trakt: false, history: false });
+    expect(userListServicesFrom({ history: true }, null).history).toBe(true);
     expect(userListServicesFrom({ mdblistKey: ' typed ', watchlistDraft: { simkl: { access_token: 'synthetic' }, anilist: { access_token: 'synthetic-ani' } } }, null))
-      .toEqual({ simkl: true, mdblist: true, anilist: true, trakt: false });
+      .toEqual({ simkl: true, mdblist: true, anilist: true, trakt: false, history: false });
     expect(userListServicesFrom({ savedServices: ['mdblistKey'] }, {
       simkl: { connected: true, configured: true }, trakt: { connected: true, configured: true, legacy: true }, anilist: { connected: false, configured: true },
-    })).toEqual({ simkl: true, mdblist: true, anilist: false, trakt: true });
+    })).toEqual({ simkl: true, mdblist: true, anilist: false, trakt: true, history: false });
   });
 
   it('MDBList lists come from the typed key first, else the saved setup', () => {

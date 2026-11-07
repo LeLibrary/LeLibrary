@@ -51,6 +51,8 @@ Every setup ends with one thing: an install link. Keep it.
   - **Integrations** (optional): Simkl, and AniList by public username or a
     connect for private lists. Each adds its personal rows (Up Next, Watching,
     Plan to Watch and more) to the Home rows and folder pickers.
+  - **Watch history** (optional): appears once the setup has something to
+    read history from. See [Watch history](#watch-history).
   - **Streams**: playback filters (presets such as Best quality or Save
     space, resolutions you can tap and reorder, size limits), extra stream
     sources and your own addons.
@@ -226,6 +228,54 @@ plain TMDB search; nothing here uses AI.
 
 After saving, reinstall the addon in Stremio, or push again to Nuvio, so the
 player picks up the new rows.
+
+---
+
+## Watch history
+
+Settle In and Move In show a **Watch history** section on the Setup page,
+right under Integrations, as soon as your setup has somewhere to read what you
+watched from:
+
+- **Nuvio**: your Nuvio sign-in on the Connect page. This is the best source:
+  it covers every device, every profile and every stream source, including
+  other addons. LeLibrary reads the profile your setup pushes to.
+- **Simkl** or **AniList**: when connected under Integrations.
+- **MDBList**: only when you added an MDBList key. It is off until you switch
+  it on, because every read spends your own MDBList daily allowance (shared
+  with your other apps). LeLibrary only reads it again when MDBList says
+  something changed.
+
+For each service you get two switches:
+
+- **History** reads what you finished and what you are part way through. It
+  fills two rows you can add in Home rows (or use in a folder), under "Watch
+  history": **Continue Watching** (films and shows you started) and **Up
+  Next** (the next episode of shows you are watching, once it has aired).
+- **Sync** (Simkl, MDBList and AniList, off by default) copies what you
+  finish in Nuvio to that service, about every 30 minutes while your setup is
+  in use, with the real date you watched it. It starts from the moment you
+  switch it on: older history is not copied. Nothing is ever sent twice.
+  AniList only gets anime it can match to exactly one AniList entry. Simkl
+  needs the new Simkl sign-in (see below).
+
+**Hide watched** (off by default) leaves out films you have watched and shows
+you are caught up on, in your library rows, discovery rows, Hub shelves and
+collections. Search and your own lists (Completed, Continue Watching and so
+on) still show everything. A page can come back a little shorter than usual
+when titles on it are hidden.
+
+LeLibrary never scrobbles while you watch. Nuvio does that itself: in the
+Nuvio app, sign in to Simkl, MDBList or Trakt, and Nuvio marks what you watch
+as you watch it. That way nothing is marked twice.
+
+### Reconnect Simkl
+
+Simkl changed how apps sign in. Connections made before LeLibrary 6 keep
+working for now, and the Simkl card says "Reconnect Simkl to keep it working
+after 2027". To move over, open Integrations, press **Disconnect** on Simkl,
+then **Connect** again and approve LeLibrary on simkl.com. Your Simkl rows
+come back straight away, and Sync to Simkl only works after this.
 
 ---
 

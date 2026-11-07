@@ -75,6 +75,8 @@ test.beforeEach(() => {
   rt.resetRuntime();
   anilist.resetBudget();
   process.env.SIMKL_CLIENT_ID = 'synthetic-simkl-client';
+  // The synthetic tokens here look like V1 tokens: they read through the V1 app.
+  process.env.SIMKL_V1_CLIENT_ID = 'synthetic-simkl-v1-client';
 });
 
 // ── Row ids ───────────────────────────────────────────────────────────────
@@ -100,11 +102,11 @@ test('AniList is Connect only: there is no username rule or normaliser left', ()
 });
 
 test('services: a Simkl connection, an MDBList key and a live AniList connection', () => {
-  assert.deepEqual(rows.userListServices({}), { simkl: false, mdblist: false, anilist: false });
+  assert.deepEqual(rows.userListServices({}), { simkl: false, mdblist: false, anilist: false, history: false });
   assert.deepEqual(rows.userListServices({
     watchlist: { simkl: { access_token: SIMKL_TOKEN }, anilist: { access_token: ANILIST_TOKEN } },
     mdblistKey: MDB_KEY,
-  }), { simkl: true, mdblist: true, anilist: true });
+  }), { simkl: true, mdblist: true, anilist: true, history: true });
   assert.equal(rows.userListServices({ watchlist: { anilist: { access_token: ANILIST_TOKEN, expires_at: Date.now() - 1000 } } }).anilist, false, 'expired AniList token');
   // A saved username from before v6.1 powers nothing.
   assert.equal(rows.userListServices({ anilistUser: 'Neo_99' }).anilist, false);

@@ -23,7 +23,9 @@ test('pending states are single-use and expire', () => {
   const now = 1_000_000;
   const { state } = createPendingOAuth('uuid-1', 'simkl', now);
   assert.ok(typeof state === 'string' && state.length > 10);
-  assert.deepEqual(consumePendingOAuth(state, now + 1000), { uuid: 'uuid-1', provider: 'simkl', sessionHash: null });
+  const consumed = consumePendingOAuth(state, now + 1000);
+  assert.deepEqual({ ...consumed, codeVerifier: undefined }, { uuid: 'uuid-1', provider: 'simkl', sessionHash: null, codeVerifier: undefined });
+  assert.match(consumed.codeVerifier, /^[A-Za-z0-9_-]{43}$/, 'Simkl states carry a PKCE verifier');
   assert.equal(consumePendingOAuth(state, now + 1000), null);
   const late = createPendingOAuth('uuid-2', 'trakt', now);
   assert.equal(consumePendingOAuth(late.state, now + 11 * 60 * 1000), null);
@@ -33,7 +35,7 @@ test('pending states are single-use and expire', () => {
 
 test('authorize urls point at the providers with the setup callback', () => {
   const simkl = authorizeUrl('simkl', 'state-1', 'https://example.test');
-  assert.ok(simkl.startsWith('https://simkl.com/oauth/authorize?'));
+  assert.ok(simkl.startsWith('https://simkl.com/oauth2/authorize?'));
   assert.ok(simkl.includes('state-1'));
   assert.ok(simkl.includes(encodeURIComponent('https://example.test/api/setup/oauth/simkl/callback')));
   const trakt = authorizeUrl('trakt', 'state-2', 'https://example.test');

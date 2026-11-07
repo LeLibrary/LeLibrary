@@ -269,7 +269,7 @@ describe('edit save body', () => {
       },
       // Every TorBox source on, no excluded category and every search option at
       // its default: any stored value is cleared.
-      clearConfig: ['excludeCategories', 'torboxSources', 'searchOptions'],
+      clearConfig: ['excludeCategories', 'torboxSources', 'searchOptions', 'watchHistory'],
     });
   });
 
@@ -283,6 +283,16 @@ describe('edit save body', () => {
     expect(body?.clearConfig ?? []).not.toContain('excludeCategories');
   });
 
+  it('saves watch history settings compact, and clears them at their defaults', () => {
+    const body = buildEditSaveBody({
+      ...BASE_EDIT_SAVE,
+      metaTouched: true,
+      meta: { ...EMPTY_METADATA_EXTRAS, watchHistory: { ...EMPTY_METADATA_EXTRAS.watchHistory, hideWatched: true } },
+    });
+    expect(body?.config).toMatchObject({ watchHistory: { hideWatched: true } });
+    expect(body?.clearConfig ?? []).not.toContain('watchHistory');
+  });
+
   it('saves a TorBox source limit with the metadata toggles', () => {
     const body = buildEditSaveBody({
       ...BASE_EDIT_SAVE,
@@ -290,7 +300,7 @@ describe('edit save body', () => {
       meta: { ...EMPTY_METADATA_EXTRAS, torboxSources: ['usenet'] },
     });
     expect(body?.config).toMatchObject({ torboxSources: ['usenet'] });
-    expect(body?.clearConfig).toEqual(['excludeCategories', 'searchOptions']);
+    expect(body?.clearConfig).toEqual(['excludeCategories', 'searchOptions', 'watchHistory']);
   });
 
   it('saves search options only when they differ from the defaults', () => {

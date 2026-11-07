@@ -173,6 +173,7 @@ async function anilistName(ctx: UserListContext, auth: AnilistAuth): Promise<str
 
 export interface AnilistListsApi {
   listsFrom: typeof listsFrom;
+  anilistGraphql: typeof graphql;
   mapEntries: typeof mapEntries;
   anilistRowItems: typeof anilistRowItems;
   anilistName: typeof anilistName;
@@ -180,4 +181,4 @@ export interface AnilistListsApi {
   THROTTLE_PER_MIN: number;
 }
 
-module.exports = { listsFrom, mapEntries, anilistRowItems, anilistName, resetBudget, THROTTLE_PER_MIN } satisfies AnilistListsApi;
+module.exports = { listsFrom, anilistGraphql: graphql, mapEntries, anilistRowItems, anilistName, resetBudget, THROTTLE_PER_MIN } satisfies AnilistListsApi;

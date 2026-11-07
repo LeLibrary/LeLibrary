@@ -166,7 +166,7 @@ describe('draft Preview declares connected list services', () => {
 
 describe('"Your lists" shelves follow the cards', () => {
   it('only for services the draft or saved setup has', () => {
-    expect(userListServicesFrom({}, null)).toEqual({ simkl: false, mdblist: false, anilist: false, trakt: false });
+    expect(userListServicesFrom({}, null)).toEqual({ simkl: false, mdblist: false, anilist: false, trakt: false, history: false });
     expect(userListServicesFrom({ mdblistKey: 'synthetic-mdb' }, null).mdblist).toBe(true);
     expect(userListServicesFrom({ savedServices: ['mdblistKey'] }, null).mdblist).toBe(true);
     // Edit mode: the page's one connections status (a connect on the card shows its shelf).

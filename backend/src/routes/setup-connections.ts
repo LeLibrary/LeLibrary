@@ -76,6 +76,20 @@ function displayUser(conn: PushConnection | null, platform: string): string | nu
   return null;
 }
 
+// Fire-and-forget revoke of a V2 Simkl grant (either token ends both).
+// Never under the test runner, never logged.
+function revokeSimkl(conn: { access_token?: string; refresh_token?: string | null }): void {
+  if (process.env['NODE_TEST_CONTEXT'] || process.argv.some((arg) => arg.includes('--test'))) return;
+  const token = conn.refresh_token || conn.access_token;
+  if (!token) return;
+  const axios = require('axios');
+  axios.post('https://api.simkl.com/oauth2/revoke', new URLSearchParams({
+    token: String(token),
+    client_id: String(process.env['SIMKL_CLIENT_ID'] || ''),
+    client_secret: String(process.env['SIMKL_CLIENT_SECRET'] || ''),
+  }).toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'LeLibrary' }, timeout: 10000 }).catch(() => {});
+}
+
 // The live connect-time name lookup (user-lists), or none under the test
 // runner: tests pass the `accountName` seam instead.
 function liveAccountName(provider: string, token: string): Promise<string | null> {
@@ -296,7 +310,7 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
     const opened = await store.resolveByUuid(uuid);
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
     if (!authorizeBearer(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
-    const status: Record<string, { connected: boolean; configured: boolean; legacy?: boolean; username?: string }> = {};
+    const status: Record<string, { connected: boolean; configured: boolean; legacy?: boolean; reconnect?: boolean; username?: string }> = {};
     for (const provider of WATCHLIST_PROVIDERS) {
       const conn = conns.readWatchlist(opened, provider);
       status[provider] = {
@@ -305,6 +319,16 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
       };
       // The account name stored at connect time (display only).
       if (conn && typeof conn.username === 'string' && conn.username) status[provider].username = conn.username;
+      // Simkl (v6): a connection made with the old V1 app. It keeps working
+      // until Simkl retires V1 (`legacy`); without the V1 client id on this
+      // server it already needs a reconnect (`reconnect`).
+      if (provider === 'simkl' && conn) {
+        const client = conns.simklClient(conn);
+        if (client.kind === 'legacy') {
+          status[provider].legacy = true;
+          if (!client.usable) status[provider].reconnect = true;
+        }
+      }
     }
     // Trakt is kept only for setups already connected (new ones are not
     // offered it): `legacy` tells the page to hide the card otherwise.
@@ -321,9 +345,13 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
     const opened = await store.resolveByUuid(uuid);
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
     if (!authorizeBearer(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    const dropped = conns.readWatchlist(opened, provider);
     await store.save(uuid, {
       keys: conns.dropEnvelopeKey(asRecord(opened.keys), 'watchlist', provider),
     });
+    // Simkl V2 has a revoke endpoint: end the grant instead of leaving a
+    // live token behind. Best effort (it always answers 200 anyway).
+    if (provider === 'simkl' && dropped && conns.simklClient(dropped).kind === 'v2') revokeSimkl(dropped);
     res.json({ ok: true });
   });
 
@@ -383,6 +411,17 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
       res.status(400).type('html').send(oauth.popupPage(provider, false, 'Sign-in expired. Close this and try again.'));
       return;
     }
+    // Simkl V2 names itself on every callback; a different issuer is a
+    // mix-up attempt and its code is never used.
+    if (!oauth.issuerAccepted(provider, req.query['iss'])) {
+      res.status(400).type('html').send(oauth.popupPage(provider, false, 'This sign-in did not come from the expected service.'));
+      return;
+    }
+    // "Don't allow" on the consent page comes back as an error, no code.
+    if (req.query['error']) {
+      res.status(400).type('html').send(oauth.popupPage(provider, false, 'Sign-in cancelled. Close this and try again.'));
+      return;
+    }
     const code = String(req.query['code'] || '');
     if (!code) {
       res.status(400).type('html').send(oauth.popupPage(provider, false, 'Missing sign-in code.'));
@@ -395,7 +434,7 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
     }
     try {
       const conn = await oauth.exchangeCode(
-        provider as WatchlistOAuthProvider, code, publicOrigin(req),
+        provider as WatchlistOAuthProvider, code, publicOrigin(req), pending.codeVerifier,
       );
       // The account name, asked once so the card can say "Connected as ..."
       // at once. A failed lookup still connects (the name stays unknown).

@@ -81,6 +81,10 @@ export function cleanConn(value: unknown): WatchlistDraftConn | null {
   if (typeof record['refresh_token'] === 'string') out.refresh_token = record['refresh_token'];
   if (typeof record['expires_at'] === 'number') out.expires_at = record['expires_at'];
   if (typeof record['client_id'] === 'string') out.client_id = record['client_id'];
+  // Simkl V2: which sign-in this is and what it may do (history sync checks
+  // media:write). Not secrets.
+  if (record['auth'] === 'v2') out.auth = 'v2';
+  if (typeof record['scope'] === 'string' && /^[a-z: ]{0,100}$/.test(record['scope'])) out.scope = record['scope'];
   const username = cleanAccountName(record['username']);
   if (username) out.username = username;
   return out;

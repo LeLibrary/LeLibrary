@@ -129,6 +129,8 @@ const KEY_SERVICE_NAMES = new Set([
   'erdbToken', 'rpdbKey', 'fanartKey', 'postersPlusUrl',
   // Connected list services (names only): their rows show as samples.
   'simkl', 'anilist',
+  // A Nuvio login (name only): the Watch history rows show as samples.
+  'nuvio',
 ]);
 
 export function draftRequestConfig(value: unknown): Record<string, unknown> {

@@ -242,6 +242,7 @@ async function mdblistUsername(ctx: UserListContext, key: string): Promise<strin
 }
 
 export interface MdblistListsApi {
+  mdblistActivityStamp: typeof activityStamp;
   mdblistItemPages: typeof mdblistItemPages;
   itemFrom: typeof itemFrom;
   upnextFrom: typeof upnextFrom;
@@ -251,4 +252,4 @@ export interface MdblistListsApi {
   ITEM_CAP: number;
 }
 
-module.exports = { mdblistItemPages, itemFrom, upnextFrom, mdblistRowItems, mdblistLists, mdblistUsername, ITEM_CAP } satisfies MdblistListsApi;
+module.exports = { mdblistActivityStamp: activityStamp, mdblistItemPages, itemFrom, upnextFrom, mdblistRowItems, mdblistLists, mdblistUsername, ITEM_CAP } satisfies MdblistListsApi;
