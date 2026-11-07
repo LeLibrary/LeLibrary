@@ -677,8 +677,9 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       if (!catalogProviderId || !active.includes(catalogProviderId)) return res.json({ metas: [] });
     }
 
-    // `{prefix}-movies-4k` / `-hdr` / `-new`: My Movies / My Shows narrowed
-    // to one release quality or to new releases (library/quality-filter.ts).
+    // `{prefix}-movies-4k` / `-hdr` / `-new` / Hub shelves: My Movies / My
+    // Shows narrowed to one release quality, new releases or one shelf
+    // (library/quality-filter.ts, library/hub-shelves.ts).
     const libraryId = require('../library/quality-filter.ts').parseLibraryCatalogId(catalogId);
     let variant = libraryId?.variant || null;
     // The Hub's Genres folder catalogue: the genre extra names the genre.
@@ -687,6 +688,13 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       const genre = require('../library/genres.ts').genreByName(libraryId!.kind === 'movies' ? 'movies' : 'series', genreName);
       if (!genre) return res.json({ metas: [] });
       variant = `g-${genre.slug}`;
+    }
+    // The Hub's World Cinema / By Decade folder catalogues: the genre extra
+    // names the language or decade (library/hub-shelves.ts).
+    if (variant === 'world' || variant === 'decades') {
+      const tab = require('../library/hub-shelves.ts').tabVariant(variant, parseExtra(req.params.extra || '').genre);
+      if (!tab) return res.json({ metas: [] });
+      variant = tab;
     }
     let type;
     if (libraryId) type = libraryId.kind === 'anime' ? 'anime' : libraryId.kind === 'movies' ? 'movie' : 'series';
@@ -740,8 +748,8 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       }
     }
 
-    // "Your genres" and New Releases rows need the library database (genres
-    // and release dates live there). The request-time path has none: answer
+    // "Your genres", New Releases and Hub shelf rows need the library
+    // database (genres, dates and votes live there). The request-time path has none: answer
     // empty rather than the whole library.
     if (require('../library/quality-filter.ts').needsLibraryFacts(variant)) {
       res.setHeader('Cache-Control', 'no-store');

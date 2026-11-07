@@ -178,6 +178,14 @@ export const HUB_4K_COVER = '/collection-assets/collections/covers/lelibrary-hub
 export const HUB_HDR_COVER = '/collection-assets/collections/covers/lelibrary-hub-hdr-v3.jpg';
 export const HUB_GENRES_FOLDER_ID = 'folder-lelibrary-hub-genres';
 export const HUB_GENRES_COVER = '/collection-assets/collections/covers/lelibrary-hub-genres-v3.jpg';
+// v6 Hub shelves (server: library/hub-shelves.ts).
+export const HUB_ADDED_FOLDER_ID = 'folder-lelibrary-hub-added';
+export const HUB_TOP_FOLDER_ID = 'folder-lelibrary-hub-top';
+export const HUB_DECADES_FOLDER_ID = 'folder-lelibrary-hub-decades';
+export const HUB_WORLD_FOLDER_ID = 'folder-lelibrary-hub-world';
+export const HUB_FAMILY_FOLDER_ID = 'folder-lelibrary-hub-family';
+export const HUB_LENGTH_FOLDER_ID = 'folder-lelibrary-hub-length';
+const hubCover = (name: string) => `/collection-assets/collections/covers/lelibrary-hub-${name}-v3.jpg`;
 
 // Old folderDefault() pointed at the genre starter catalogue.
 export const STARTER_SOURCE: CatalogSourceRef = {
@@ -326,8 +334,10 @@ export function absoluteUrl(origin: string, value: string): string {
 }
 
 // The LeLibrary Hub: My Movies, My Shows, and the same library narrowed to
-// new releases (released or last aired in the last 12 months), 4K and HDR &
-// Dolby Vision (each of those holds movies and shows), then Genres.
+// new releases (released or last aired in the last 12 months), recently
+// added (30 days), top rated, 4K and HDR & Dolby Vision (each of those holds
+// movies and shows), then Genres, By Decade, World Cinema, Family Friendly
+// and Short or Long (films only).
 export function hubCollection(prefix: string, origin: string): CollectionDoc {
   const abs = (path: string) => absoluteUrl(origin, path);
   return {
@@ -363,9 +373,22 @@ export function hubCollection(prefix: string, origin: string): CollectionDoc {
         heroBackdropUrl: abs(HUB_SHOWS_COVER),
         catalogSources: [{ addonId: '', addonUrl: '', catalogId: `${prefix}-series`, type: 'series', genre: '' }],
       },
-      // Genres: saved as two genre-less sources; each push fills in one tab
-      // per genre the library owns enough of (server: expandHubGenres).
-      ...([[HUB_NEW_FOLDER_ID, 'New Releases', 'new', HUB_NEW_COVER], [HUB_4K_FOLDER_ID, '4K', '4k', HUB_4K_COVER], [HUB_HDR_FOLDER_ID, 'HDR & Dolby Vision', 'hdr', HUB_HDR_COVER], [HUB_GENRES_FOLDER_ID, 'Genres', 'genres', HUB_GENRES_COVER]] as const).map(([id, title, variant, cover]) => ({
+      // Genres, By Decade and World Cinema: saved as two genre-less sources;
+      // each push fills in one tab per genre / decade / language the library
+      // owns enough of (server: expandHubGenres, expandHubTabs). Short or
+      // Long holds films only: its two tabs are Short & Sweet and Long Watch.
+      ...([
+        [HUB_NEW_FOLDER_ID, 'New Releases', ['new'], HUB_NEW_COVER],
+        [HUB_ADDED_FOLDER_ID, 'Recently Added', ['added'], hubCover('added')],
+        [HUB_TOP_FOLDER_ID, 'Top Rated', ['top'], hubCover('top')],
+        [HUB_4K_FOLDER_ID, '4K', ['4k'], HUB_4K_COVER],
+        [HUB_HDR_FOLDER_ID, 'HDR & Dolby Vision', ['hdr'], HUB_HDR_COVER],
+        [HUB_GENRES_FOLDER_ID, 'Genres', ['genres'], HUB_GENRES_COVER],
+        [HUB_DECADES_FOLDER_ID, 'By Decade', ['decades'], hubCover('decades')],
+        [HUB_WORLD_FOLDER_ID, 'World Cinema', ['world'], hubCover('world')],
+        [HUB_FAMILY_FOLDER_ID, 'Family Friendly', ['family'], hubCover('family')],
+        [HUB_LENGTH_FOLDER_ID, 'Short or Long', ['short', 'long'], hubCover('length')],
+      ] as const).map(([id, title, variants, cover]) => ({
         id,
         title,
         tileShape: 'LANDSCAPE' as const,
@@ -374,10 +397,12 @@ export function hubCollection(prefix: string, origin: string): CollectionDoc {
         focusGifEnabled: false,
         focusGifUrl: '',
         heroBackdropUrl: abs(cover),
-        catalogSources: [
-          { addonId: '', addonUrl: '', catalogId: `${prefix}-movies-${variant}`, type: 'movie' as const, genre: '' },
-          { addonId: '', addonUrl: '', catalogId: `${prefix}-series-${variant}`, type: 'series' as const, genre: '' },
-        ],
+        catalogSources: variants.length > 1
+          ? variants.map((variant) => ({ addonId: '', addonUrl: '', catalogId: `${prefix}-movies-${variant}`, type: 'movie' as const, genre: '' }))
+          : [
+            { addonId: '', addonUrl: '', catalogId: `${prefix}-movies-${variants[0]}`, type: 'movie' as const, genre: '' },
+            { addonId: '', addonUrl: '', catalogId: `${prefix}-series-${variants[0]}`, type: 'series' as const, genre: '' },
+          ],
       })),
     ],
   };
@@ -395,8 +420,9 @@ export function collectionBackdrop(collection: CollectionDoc): string {
   return '';
 }
 
-// A Hub saved before its New Releases, 4K, HDR & Dolby Vision or Genres
-// folders existed gets them on load, on its Movies folder's provider prefix,
+// A Hub saved before its New Releases, 4K, HDR & Dolby Vision, Genres or
+// shelf folders (Recently Added, Top Rated, By Decade, World Cinema, Family
+// Friendly, Short or Long) existed gets them on load, on its Movies folder's provider prefix,
 // so the editor shows what a push sends (server: withHubExtras in
 // collection-plan.ts). Only missing folders are added, each right after the
 // nearest Hub folder that comes before it (else last); saved folders are
@@ -643,6 +669,17 @@ export function nativeLibraryRows(prefix: string | null, platform: string): Brow
     // shows last aired in the last 12 months, newest first.
     { id: 'native-new-movies', catalogId: `${resolved}-movies-new`, name: 'New Movies', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
     { id: 'native-new-shows', catalogId: `${resolved}-series-new`, name: 'New & Returning Shows', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
+    // Hub shelves (server: library/hub-shelves.ts): added in the last 30
+    // days, top rated with a vote floor, films under 100 / over 150 minutes,
+    // rated for the whole family.
+    { id: 'native-added-movies', catalogId: `${resolved}-movies-added`, name: 'Recently Added Movies', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
+    { id: 'native-added-shows', catalogId: `${resolved}-series-added`, name: 'Recently Added Shows', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
+    { id: 'native-top-movies', catalogId: `${resolved}-movies-top`, name: 'Top Rated Movies', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
+    { id: 'native-top-shows', catalogId: `${resolved}-series-top`, name: 'Top Rated Shows', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
+    { id: 'native-short-movies', catalogId: `${resolved}-movies-short`, name: 'Short & Sweet', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
+    { id: 'native-long-movies', catalogId: `${resolved}-movies-long`, name: 'Long Watch', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
+    { id: 'native-family-movies', catalogId: `${resolved}-movies-family`, name: 'Family Movies', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
+    { id: 'native-family-shows', catalogId: `${resolved}-series-family`, name: 'Family Shows', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
     { id: 'native-4k-movies', catalogId: `${resolved}-movies-4k`, name: '4K Movies', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
     { id: 'native-4k-shows', catalogId: `${resolved}-series-4k`, name: '4K Shows', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
     { id: 'native-hdr-movies', catalogId: `${resolved}-movies-hdr`, name: 'HDR & Dolby Vision Movies', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },

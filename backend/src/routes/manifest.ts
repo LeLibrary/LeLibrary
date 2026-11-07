@@ -213,16 +213,41 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
     // rows, only when picked as a Home row or used by a folder.
     if (!require('../library/engine.ts').isIndexed()) return;
     // New Releases (library/new-releases.ts): released or last aired in the
-    // last 12 months. Needs the stored TMDB dates, so database-backed only.
+    // last 12 months, and the Hub shelves (library/hub-shelves.ts): Recently
+    // Added, Top Rated, Short & Sweet / Long Watch (films only), Family
+    // Friendly. They need stored TMDB facts, so database-backed only.
+    const SHELF_NAMES: Record<'movies' | 'series', [string, string][]> = {
+      movies: [['new', '🎬 New Movies'], ['added', '🎬 Recently Added Movies'], ['top', '🎬 Top Rated Movies'],
+        ['short', '🎬 Short & Sweet'], ['long', '🎬 Long Watch'], ['family', '🎬 Family Movies']],
+      series: [['new', '📺 New & Returning Shows'], ['added', '📺 Recently Added Shows'], ['top', '📺 Top Rated Shows'],
+        ['family', '📺 Family Shows']],
+    };
     for (const prefix of groups) {
-      const id = `${prefix}-${type}-new`;
-      const picked = selectedHomeCatalogs.has(id);
-      if (!picked && !qualityWanted.has(id)) continue;
-      const tag = separate && groups.length > 1 ? ` [${providers.PROVIDER_META[providers.providerByCat(prefix)].short}]` : '';
-      const name = type === 'movies' ? '🎬 New Movies' : '📺 New & Returning Shows';
-      const row: LooseConfig = { id, type: type === 'movies' ? 'movie' : 'series', name: name + tag, extra: CAT_EXTRA };
-      if (integration === 'nuvio' && !picked) row.showInHome = false;
-      catalogs.push(row);
+      for (const [variant, name] of SHELF_NAMES[type]) {
+        const id = `${prefix}-${type}-${variant}`;
+        const picked = selectedHomeCatalogs.has(id);
+        if (!picked && !qualityWanted.has(id)) continue;
+        const tag = separate && groups.length > 1 ? ` [${providers.PROVIDER_META[providers.providerByCat(prefix)].short}]` : '';
+        const row: LooseConfig = { id, type: type === 'movies' ? 'movie' : 'series', name: name + tag, extra: CAT_EXTRA };
+        if (integration === 'nuvio' && !picked) row.showInHome = false;
+        catalogs.push(row);
+      }
+      // The Hub's World Cinema and By Decade folders: one catalogue per kind
+      // each, the language / decade comes in the genre extra, like Genres
+      // (tabs read "Movies · Korean", "Shows · 1990s").
+      const shelves = require('../library/hub-shelves.ts');
+      for (const [variant, options] of [['world', shelves.worldLanguageNames()], ['decades', [...shelves.DECADES]]] as [string, string[]][]) {
+        const id = `${prefix}-${type}-${variant}`;
+        const picked = selectedHomeCatalogs.has(id);
+        if (!picked && !qualityWanted.has(id)) continue;
+        const tag = separate && groups.length > 1 ? ` [${providers.PROVIDER_META[providers.providerByCat(prefix)].short}]` : '';
+        const row: LooseConfig = {
+          id, type: type === 'movies' ? 'movie' : 'series', name: (type === 'movies' ? 'Movies' : 'Shows') + tag,
+          extra: [{ name: 'genre', isRequired: true, options }, { name: 'skip' }],
+        };
+        if (integration === 'nuvio' && !picked) row.showInHome = false;
+        catalogs.push(row);
+      }
     }
     const genres = require('../library/genres.ts');
     for (const prefix of groups) {

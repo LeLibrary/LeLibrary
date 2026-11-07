@@ -265,7 +265,7 @@ async function buildPreview({ opened, platform, origin, port }: PreviewInput, de
   const withGenres = draft ? saved : await push.withHubGenreTabs(saved, token, [
     ...(filterState.hideAnime ? ['anime'] : []),
     ...filterState.excludeCategories,
-  ]);
+  ], filterState);
   const plan = compileCollectionPlan({
     collections: withGenres,
     homeRows: Array.isArray(config['collectionHomeRows']) ? config['collectionHomeRows'] : [],
@@ -479,7 +479,7 @@ async function buildDraftPreview({ tier, platform, config, keyServices, origin }
 function classifyDraftCatalog(type: string, catalogId: string): DraftCatalogKind {
   const providers = require('../providers/index.ts') as { PROVIDER_META: Record<string, { cat: string }> };
   const cats = Object.values(providers.PROVIDER_META).map((meta) => meta.cat).join('|');
-  if (new RegExp(`^(?:${cats})-(?:movies|series|anime)(?:-(?:4k|hdr|new|genres|g-[a-z0-9-]+))?$`).test(catalogId)) return { kind: 'library' };
+  if (new RegExp(`^(?:${cats})-(?:movies|series|anime)(?:-(?:4k|hdr|new|added|top|short|long|family|world|decades|genres|g-[a-z0-9-]+))?$`).test(catalogId)) return { kind: 'library' };
   // Personal lists (and the old watchlist ids) need the setup's own
   // connection or key: never read for a draft.
   const personal = catalogId.match(/^(?:lelibrary-user-(simkl|mdblist|anilist)-[a-z.0-9]+|torbox-watchlist-([a-z]+))-(?:movie|series)$/);

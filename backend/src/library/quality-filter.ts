@@ -10,16 +10,26 @@
 // `{prefix}-movies-new` / `{prefix}-series-new` are the Hub's New Releases
 // rows: filtered by TMDB release / air dates (library/new-releases.ts), not
 // by names, so they need the library database like the genre rows.
+// The Hub shelves (library/hub-shelves.ts) work the same way:
+// `-added`, `-top`, `-family` (movies and series), `-short`, `-long`
+// (movies only), and the World Cinema / By Decade folder catalogues
+// `-world`, `-decades` (the tab comes in the genre extra).
 
 // '4k' | 'hdr' (release quality), 'g-<slug>' (one "Your genres" row) or
 // 'genres' (the Hub's Genres folder catalogue: the genre comes in the genre
 // extra). Genres are filtered by TMDB facts (library/genres.ts), not names.
 // 'new': released (films) or last aired (shows) in the last 12 months.
-type Variant = '4k' | 'hdr' | 'new' | 'genres' | `g-${string}`;
+// Hub shelves: 'added' | 'top' | 'short' | 'long' | 'family', and 'world' /
+// 'decades' (folder catalogues) which the route turns into `w-<lang>` /
+// `d-<decade>` from the genre extra.
+type Variant = '4k' | 'hdr' | 'new' | 'genres' | `g-${string}`
+  | 'added' | 'top' | 'short' | 'long' | 'family' | 'world' | 'decades' | `w-${string}` | `d-${string}`;
 type Row = { name?: unknown; raw?: unknown; [key: string]: unknown };
 
 const VARIANTS: readonly Variant[] = ['4k', 'hdr'];
-const LIBRARY_ID = /^([a-z]+)-(movies|series|anime)(?:-(4k|hdr|new|genres|g-[a-z0-9]+))?$/;
+const LIBRARY_ID = /^([a-z]+)-(movies|series|anime)(?:-(4k|hdr|new|added|top|short|long|family|world|decades|genres|g-[a-z0-9]+))?$/;
+// Shelves that exist for films only (a show has no single runtime).
+const MOVIES_ONLY = new Set(['short', 'long']);
 
 const TESTS: Record<'4k' | 'hdr', RegExp> = {
   '4k': /\b(?:2160P|4K|UHD)\b/,
@@ -32,6 +42,7 @@ function parseLibraryCatalogId(id: unknown): { prefix: string; kind: 'movies' | 
   const kind = match[2] as 'movies' | 'series' | 'anime';
   const variant = (match[3] as Variant | undefined) || null;
   if (variant && kind === 'anime') return null;
+  if (variant && kind === 'series' && MOVIES_ONLY.has(variant)) return null;
   if (variant && variant.startsWith('g-')) {
     const genre = require('./genres.ts').genreBySlug(variant.slice(2));
     if (!genre || !(kind === 'movies' ? genre.movie : genre.tv)) return null;
@@ -44,9 +55,11 @@ function isGenreVariant(variant: unknown): variant is `g-${string}` | 'genres' {
 }
 
 // Rows filtered by TMDB facts kept in the library database (genres, New
-// Releases). The request-time path has no database: it answers them empty.
+// Releases, the Hub shelves). The request-time path has no database: it
+// answers them empty.
 function needsLibraryFacts(variant: unknown): boolean {
-  return isGenreVariant(variant) || variant === 'new';
+  return isGenreVariant(variant) || variant === 'new' || variant === 'world' || variant === 'decades'
+    || require('./hub-shelves.ts').isShelfVariant(variant);
 }
 
 // Every name a release carries: the item name, and file names where the
@@ -75,7 +88,7 @@ function releaseNames(item: Row): string[] {
 
 function matchesVariant(item: Row, variant: Variant | null): boolean {
   if (!variant) return true;
-  // Genre and New Releases rows are filtered by TMDB facts, not names.
+  // Genre, New Releases and shelf rows are filtered by TMDB facts, not names.
   if (needsLibraryFacts(variant)) return true;
   const test = TESTS[variant as '4k' | 'hdr'];
   return releaseNames(item).some((name) => test.test(name.toUpperCase()));

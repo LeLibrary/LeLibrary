@@ -8,14 +8,17 @@ const oldHub = (): CollectionDoc => {
 };
 
 describe('an older Hub shows its newer folders', () => {
-  it('adds New Releases, 4K, HDR and Genres on the Movies folder prefix, once', () => {
+  it('adds New Releases, the shelves, 4K, HDR and Genres on the Movies folder prefix, once', () => {
     const upgraded = withHubExtras(oldHub(), 'https://example.test');
     expect(upgraded.folders.map((f) => f.id)).toEqual([
       'folder-lelibrary-hub-movies', 'folder-lelibrary-hub-shows', 'folder-lelibrary-hub-new',
+      'folder-lelibrary-hub-added', 'folder-lelibrary-hub-top',
       'folder-lelibrary-hub-4k', 'folder-lelibrary-hub-hdr', 'folder-lelibrary-hub-genres',
+      'folder-lelibrary-hub-decades', 'folder-lelibrary-hub-world', 'folder-lelibrary-hub-family', 'folder-lelibrary-hub-length',
     ]);
     expect(upgraded.folders[2]!.catalogSources.map((s) => s.catalogId)).toEqual(['rd-movies-new', 'rd-series-new']);
-    expect(upgraded.folders[5]!.catalogSources.map((s) => s.catalogId)).toEqual(['rd-movies-genres', 'rd-series-genres']);
+    expect(upgraded.folders[7]!.catalogSources.map((s) => s.catalogId)).toEqual(['rd-movies-genres', 'rd-series-genres']);
+    expect(upgraded.folders[11]!.catalogSources.map((s) => s.catalogId)).toEqual(['rd-movies-short', 'rd-movies-long']);
     expect(withHubExtras(upgraded, 'https://example.test')).toBe(upgraded);
   });
 
@@ -25,7 +28,22 @@ describe('an older Hub shows its newer folders', () => {
     const saved = { ...hub, folders: [...hub.folders.filter((f) => f.id !== 'folder-lelibrary-hub-new'), mine] };
     expect(withHubExtras(saved, 'https://example.test').folders.map((f) => f.id)).toEqual([
       'folder-lelibrary-hub-movies', 'folder-lelibrary-hub-shows', 'folder-lelibrary-hub-new',
-      'folder-lelibrary-hub-4k', 'folder-lelibrary-hub-hdr', 'folder-lelibrary-hub-genres', 'folder-mine',
+      'folder-lelibrary-hub-added', 'folder-lelibrary-hub-top',
+      'folder-lelibrary-hub-4k', 'folder-lelibrary-hub-hdr', 'folder-lelibrary-hub-genres',
+      'folder-lelibrary-hub-decades', 'folder-lelibrary-hub-world', 'folder-lelibrary-hub-family', 'folder-lelibrary-hub-length',
+      'folder-mine',
+    ]);
+  });
+
+  it('a New Releases Hub gets the v6 shelves in Hub order; moved folders keep their places', () => {
+    const hub = hubCollection('rd', 'https://example.test');
+    const v6 = new Set(['folder-lelibrary-hub-added', 'folder-lelibrary-hub-top', 'folder-lelibrary-hub-decades', 'folder-lelibrary-hub-world', 'folder-lelibrary-hub-family', 'folder-lelibrary-hub-length']);
+    const kept = hub.folders.filter((f) => !v6.has(f.id));
+    // The person moved Genres to the front.
+    const genres = kept.find((f) => f.id === 'folder-lelibrary-hub-genres')!;
+    const saved = { ...hub, folders: [genres, ...kept.filter((f) => f !== genres)] };
+    expect(withHubExtras(saved, 'https://example.test').folders.map((f) => f.id.replace('folder-lelibrary-hub-', ''))).toEqual([
+      'genres', 'decades', 'world', 'family', 'length', 'movies', 'shows', 'new', 'added', 'top', '4k', 'hdr',
     ]);
   });
 

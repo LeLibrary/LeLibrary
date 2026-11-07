@@ -1710,7 +1710,7 @@
     "New this week": "New this week",
     "Titles in 4K": "Titles in 4K",
     "The ultimate LeLibrary sampler: big, bold, and packed with variety. Also adds the LeLibrary Hub and your Movie Collections.": "The ultimate LeLibrary sampler: big, bold, and packed with variety. Also adds the LeLibrary Hub and your Movie Collections.",
-    "My Movies, My Shows, new releases, 4K, HDR and your genres, together in one place.": "My Movies, My Shows, new releases, 4K, HDR and your genres, together in one place.",
+    "My Movies, My Shows, new and recently added, top rated, 4K, HDR, genres, decades, world cinema, family picks and runtime shelves, together in one place.": "My Movies, My Shows, new and recently added, top rated, 4K, HDR, genres, decades, world cinema, family picks and runtime shelves, together in one place.",
     "LeLibrary Special added, with the LeLibrary Hub and Movie Collections": "LeLibrary Special added, with the LeLibrary Hub and Movie Collections",
     "LeLibrary Special added, with your Movie Collections": "LeLibrary Special added, with your Movie Collections",
     "LeLibrary Special added. Connect a debrid provider to add the LeLibrary Hub and Movie Collections too.": "LeLibrary Special added. Connect a debrid provider to add the LeLibrary Hub and Movie Collections too.",
@@ -1868,6 +1868,17 @@
     "Setup status": "Setup status",
     "Complete the check above": "Complete the check above",
     "The check expired. Complete it again.": "The check expired. Complete it again.",
-    "The check could not finish. Try again.": "The check could not finish. Try again."
+    "The check could not finish. Try again.": "The check could not finish. Try again.",
+    "Recently Added": "Recently Added",
+    "Family Friendly": "Family Friendly",
+    "Short or Long": "Short or Long",
+    "Recently Added Movies": "Recently Added Movies",
+    "Recently Added Shows": "Recently Added Shows",
+    "Top Rated Movies": "Top Rated Movies",
+    "Top Rated Shows": "Top Rated Shows",
+    "Short & Sweet": "Short & Sweet",
+    "Long Watch": "Long Watch",
+    "Family Movies": "Family Movies",
+    "Family Shows": "Family Shows"
   }
 }

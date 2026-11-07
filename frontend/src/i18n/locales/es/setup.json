@@ -1710,7 +1710,7 @@
     "New this week": "Nuevo esta semana",
     "Titles in 4K": "Títulos en 4K",
     "The ultimate LeLibrary sampler: big, bold, and packed with variety. Also adds the LeLibrary Hub and your Movie Collections.": "La gran muestra de LeLibrary: amplia, atrevida y llena de variedad. También añade el LeLibrary Hub y tus colecciones de películas.",
-    "My Movies, My Shows, new releases, 4K, HDR and your genres, together in one place.": "Mis películas, mis series, estrenos, 4K, HDR y tus géneros, todo junto en un solo lugar.",
+    "My Movies, My Shows, new and recently added, top rated, 4K, HDR, genres, decades, world cinema, family picks and runtime shelves, together in one place.": "Mis películas, mis series, estrenos y lo último añadido, lo mejor valorado, 4K, HDR, géneros, décadas, cine del mundo, para toda la familia y por duración, todo junto en un solo lugar.",
     "LeLibrary Special added, with the LeLibrary Hub and Movie Collections": "LeLibrary Special añadido, con el LeLibrary Hub y las colecciones de películas",
     "LeLibrary Special added, with your Movie Collections": "LeLibrary Special añadido, con tus colecciones de películas",
     "LeLibrary Special added. Connect a debrid provider to add the LeLibrary Hub and Movie Collections too.": "LeLibrary Special añadido. Conecta un proveedor debrid para añadir también el LeLibrary Hub y las colecciones de películas.",
@@ -1868,6 +1868,17 @@
     "Setup status": "Estado de la configuración",
     "Complete the check above": "Completa la verificación de arriba",
     "The check expired. Complete it again.": "La verificación ha caducado. Complétala de nuevo.",
-    "The check could not finish. Try again.": "La verificación no ha podido terminar. Inténtalo de nuevo."
+    "The check could not finish. Try again.": "La verificación no ha podido terminar. Inténtalo de nuevo.",
+    "Recently Added": "Añadido recientemente",
+    "Family Friendly": "Para toda la familia",
+    "Short or Long": "Corto o largo",
+    "Recently Added Movies": "Películas añadidas recientemente",
+    "Recently Added Shows": "Series añadidas recientemente",
+    "Top Rated Movies": "Películas mejor valoradas",
+    "Top Rated Shows": "Series mejor valoradas",
+    "Short & Sweet": "Cortas y directas",
+    "Long Watch": "Para ver con calma",
+    "Family Movies": "Películas familiares",
+    "Family Shows": "Series familiares"
   }
 }

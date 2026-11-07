@@ -297,6 +297,16 @@ const MIGRATIONS = [
   `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS last_air_date date`,
   `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS in_production boolean`,
   `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS dates_at timestamptz`,
+  // Hub shelves (library/hub-shelves.ts): Top Rated (TMDB vote average and
+  // count), Short or Long (film runtime in minutes), Family Friendly (the UK
+  // certification next to the US one), off the same TMDB read. `facts_v` is
+  // the fill's version: rows read by an older fill (NULL or lower) are read
+  // once more, so every title gets the new fields in one backfill.
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS vote_average real`,
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS vote_count integer`,
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS runtime integer`,
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS certification_gb text`,
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS facts_v smallint`,
 ];
 
 async function migrate() {
@@ -358,6 +368,7 @@ async function close() {
 }
 
 export interface DbApi {
+  MIGRATIONS: readonly string[];
   enabled: any;
   getPool: any;
   ensureSchema: any;
@@ -366,6 +377,7 @@ export interface DbApi {
 }
 
 module.exports = {
+  MIGRATIONS,
   enabled,
   getPool,
   poolStats,

@@ -91,6 +91,7 @@ function pushOptionsFromConfig(config: Record<string, unknown> | null | undefine
     // Hide anime and the Anime exclude category are one switch (5.9.7).
     hideAnime: state.hideAnime,
     excludeCategories: state.excludeCategories,
+    hideAdult: state.hideAdult,
     badgePack: typeof source['nuvioBadgePack'] === 'string' ? source['nuvioBadgePack'] : undefined,
     badgeUrl: typeof source['nuvioBadgeUrl'] === 'string' ? source['nuvioBadgeUrl'] : undefined,
     nuvioPlayback: playbackSettings.normalisePlaybackSettings(source['nuvioPlayback']),
@@ -111,6 +112,9 @@ export interface PushOptions {
   // Content filters (5.9.7): excluded category slugs, used to drop the Hub's
   // own genre tabs for categories the setup hides.
   excludeCategories?: string[];
+  // Hide adult content: also keeps adult titles out of the Hub's language /
+  // decade tab counts.
+  hideAdult?: boolean;
   badgePack?: string;
   badgeUrl?: string;
   // Absent/null leaves the user's Nuvio playback settings untouched.
@@ -818,10 +822,17 @@ async function pushToStremio(data: PushConnection, manifestUrl: string, manifest
   log('Stremio addon upserted');
 }
 
-// Fills the Hub's Genres folder for the setup behind this install link.
-// Best effort: without the library database, or on any error, the folder is
-// simply left out of this push (compileCollectionPlan drops it empty).
-async function withHubGenreTabs(collections: unknown[], installToken: string, excludedSlugs: string[]): Promise<unknown[]> {
+// Fills the Hub's Genres, World Cinema and By Decade folders for the setup
+// behind this install link. Best effort: without the library database, or on
+// any error, those folders are simply left out of this push
+// (compileCollectionPlan drops them empty). `filters` (the setup's content
+// filters) keep hidden titles from counting toward a language or decade tab.
+async function withHubGenreTabs(
+  collections: unknown[],
+  installToken: string,
+  excludedSlugs: string[],
+  filters: { hideAnime?: boolean; hideAdult?: boolean; excludeCategories?: string[] } | null = null,
+): Promise<unknown[]> {
   const hasHub = collections.some((c) => (c as { id?: string })?.id === 'collection-lelibrary-hub');
   if (!hasHub) return collections;
   try {
@@ -837,7 +848,17 @@ async function withHubGenreTabs(collections: unknown[], installToken: string, ex
     const hidden = new Set(excludedSlugs);
     if (hidden.size) counts = counts.filter((entry: { slug: string }) => !hidden.has(entry.slug));
     log(`Hub genres: ${counts.filter((entry: { count: number }) => entry.count >= 10).length} genres with 10+ titles`);
-    return require('../catalog/collection-plan.ts').expandHubGenres(collections, counts);
+    const plan = require('../catalog/collection-plan.ts');
+    const withGenres = plan.expandHubGenres(collections, counts);
+    // World Cinema / By Decade: on their own, so a failure there never costs
+    // the Genres tabs.
+    try {
+      const tabs = await require('../library/hub-shelves.ts').ownedTabCounts(scopeId, filters);
+      log(`Hub tabs: ${tabs.world.length} language and ${tabs.decades.length} decade candidates`);
+      return plan.expandHubTabs(withGenres, tabs);
+    } catch {
+      return withGenres;
+    }
   } catch {
     return collections;
   }
@@ -937,7 +958,11 @@ async function pushToNuvio(
   collections = await withHubGenreTabs(collections, options.installToken, [
     ...(options.hideAnime === true ? ['anime'] : []),
     ...(Array.isArray(options.excludeCategories) ? options.excludeCategories : []),
-  ]);
+  ], {
+    hideAnime: options.hideAnime === true,
+    hideAdult: options.hideAdult === true,
+    excludeCategories: Array.isArray(options.excludeCategories) ? options.excludeCategories : [],
+  });
   const collectionPlan = compileCollectionPlan({
     collections,
     homeRows,
@@ -1176,7 +1201,7 @@ export interface PushApi {
   nuvioCollectionsFromPlan: (plannedCollections: unknown, addonId: string, origin: string) => Record<string, unknown>[];
   withFranchiseCollection: typeof withFranchiseCollection;
   fetchOwnedFranchiseCollection: (loopback: string, tokenId: string, timeout?: number) => Promise<Record<string, unknown> | null>;
-  withHubGenreTabs: (collections: unknown[], installToken: string, excludedSlugs: string[]) => Promise<unknown[]>;
+  withHubGenreTabs: (collections: unknown[], installToken: string, excludedSlugs: string[], filters?: { hideAnime?: boolean; hideAdult?: boolean; excludeCategories?: string[] } | null) => Promise<unknown[]>;
   pullNuvioCollections: (token: string, profileIndex: number) => Promise<Record<string, unknown>[]>;
   writeNuvioCollections: (token: string, profileIndex: number, collections: unknown[], uuidKey: string) => Promise<void>;
   pushOptionsFromConfig: (config: Record<string, unknown> | null | undefined) => PushOptions;

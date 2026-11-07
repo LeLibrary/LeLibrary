@@ -621,12 +621,18 @@ async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip 
   // New Releases also keys on the day (the 12-month window moves) and the
   // fill's progress (dates arrive with it).
   const newRow = variant === 'new' && type !== 'anime';
+  // Hub shelves (Recently Added, Top Rated, Short or Long, Family Friendly,
+  // World Cinema and By Decade tabs) key on the fill's progress, Recently
+  // Added on the day too (its 30-day window moves).
+  const shelves = require('./hub-shelves.ts');
+  const shelfRow = type !== 'anime' && shelves.isShelfVariant(variant);
   const fingerprint = catalogFingerprint({
     userKey, type, sortBy, skip, libraryIdMode, provider, enhance, hideAnime,
     filters: filterState.hideAdult || filterState.excludeCategories.length ? filterState : null,
     variant: genreRow ? `${variant}@${require('./genres.ts').genreVersion()}`
       : newRow ? `new@${require('./new-releases.ts').newReleasesKey()}`
-        : variant,
+        : shelfRow ? `${variant}@${shelves.shelfKey(variant)}`
+          : variant,
   });
   // Result cache keyed on the projection fingerprint, so a completed sync that
   // changed nothing keeps serving cached pages, and stale pages expire on
@@ -695,6 +701,10 @@ async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip 
         // first. Titles without a stored date are left out.
         rank = await require('./new-releases.ts').recentReleaseDates(filterKind);
         rows = rows.filter((row) => rank.has(Number(row.tmdb_id)));
+      } else if (shelfRow) {
+        // Hub shelves (library/hub-shelves.ts). Titles without the fact are
+        // left out; Recently Added and Top Rated bring their own order.
+        ({ rows, rank } = await shelves.applyShelf(variant, filterKind, rows));
       } else if (variant) {
         const { matchesVariant } = require('./quality-filter.ts');
         const keep = new Set(rows.filter((row) => matchesVariant(row, variant)).map((row) => String(row.tmdb_id || row.entity_key)));

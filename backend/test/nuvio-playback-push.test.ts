@@ -85,6 +85,7 @@ test('config parsing feeds the push options and does not guess a mode', () => {
   assert.deepEqual(parsed, {
     hideAnime: true,
     excludeCategories: [],
+    hideAdult: false,
     badgePack: 'elite',
     badgeUrl: 'https://example.com/b.json',
     nuvioPlayback: { mode: 'FIRST_STREAM', regex: '', nextEpisode: true, onlyLeLibrary: true },

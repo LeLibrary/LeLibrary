@@ -179,26 +179,71 @@ const HUB_FOLDER_ART: Record<string, { coverImageUrl: string; focusGifUrl: strin
     coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-genres-v3.jpg',
     focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-genres-focus-v3.gif',
   },
+  'folder-lelibrary-hub-added': {
+    coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-added-v3.jpg',
+    focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-added-focus-v3.gif',
+  },
+  'folder-lelibrary-hub-top': {
+    coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-top-v3.jpg',
+    focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-top-focus-v3.gif',
+  },
+  'folder-lelibrary-hub-length': {
+    coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-length-v3.jpg',
+    focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-length-focus-v3.gif',
+  },
+  'folder-lelibrary-hub-world': {
+    coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-world-v3.jpg',
+    focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-world-focus-v3.gif',
+  },
+  'folder-lelibrary-hub-family': {
+    coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-family-v3.jpg',
+    focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-family-focus-v3.gif',
+  },
+  'folder-lelibrary-hub-decades': {
+    coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-decades-v3.jpg',
+    focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-decades-focus-v3.gif',
+  },
 };
 
-// The Hub's New Releases, 4K and HDR & Dolby Vision folders (My Movies + My
-// Shows narrowed to recent releases or to one quality,
-// library/quality-filter.ts). Hubs saved before they existed get them here,
-// on the same provider prefix as their Movies folder, so an old setup picks
-// them up on its next push without being edited. Listed in Hub order.
+// The Hub's extra folders (My Movies + My Shows narrowed to recent releases,
+// one quality, a genre or one shelf: library/quality-filter.ts,
+// library/hub-shelves.ts). Hubs saved before they existed get them here, on
+// the same provider prefix as their Movies folder, so an old setup picks
+// them up on its next push without being edited. Listed in Hub order; each
+// source is [kind, variant] (movie + series unless the shelf is films only).
 const HUB_ID = 'collection-lelibrary-hub';
 const HUB_ORDER = ['folder-lelibrary-hub-movies', 'folder-lelibrary-hub-shows'];
+const BOTH = (variant) => [['movies', variant], ['series', variant]];
 const HUB_EXTRAS = [
-  { id: 'folder-lelibrary-hub-new', title: 'New Releases', variant: 'new' },
-  { id: 'folder-lelibrary-hub-4k', title: '4K', variant: '4k' },
-  { id: 'folder-lelibrary-hub-hdr', title: 'HDR & Dolby Vision', variant: 'hdr' },
+  { id: 'folder-lelibrary-hub-new', title: 'New Releases', sources: BOTH('new') },
+  { id: 'folder-lelibrary-hub-added', title: 'Recently Added', sources: BOTH('added') },
+  { id: 'folder-lelibrary-hub-top', title: 'Top Rated', sources: BOTH('top') },
+  { id: 'folder-lelibrary-hub-4k', title: '4K', sources: BOTH('4k') },
+  { id: 'folder-lelibrary-hub-hdr', title: 'HDR & Dolby Vision', sources: BOTH('hdr') },
   // Saved as two genre-less sources; a push turns them into one tab per genre
   // the library owns enough of (expandHubGenres). Without that step (or with
   // no genre to show) the folder is left out: an empty genre shows nothing.
-  { id: 'folder-lelibrary-hub-genres', title: 'Genres', variant: 'genres' },
+  { id: 'folder-lelibrary-hub-genres', title: 'Genres', sources: BOTH('genres') },
+  // By Decade and World Cinema work like Genres: one tab per decade /
+  // language, filled at push time (expandHubTabs).
+  { id: 'folder-lelibrary-hub-decades', title: 'By Decade', sources: BOTH('decades') },
+  { id: 'folder-lelibrary-hub-world', title: 'World Cinema', sources: BOTH('world') },
+  { id: 'folder-lelibrary-hub-family', title: 'Family Friendly', sources: BOTH('family') },
+  // Films only: "Short & Sweet" and "Long Watch" tabs.
+  { id: 'folder-lelibrary-hub-length', title: 'Short or Long', sources: [['movies', 'short'], ['movies', 'long']] },
 ];
 const HUB_GENRES_ID = 'folder-lelibrary-hub-genres';
-const HUB_NEW_ID = 'folder-lelibrary-hub-new';
+const HUB_WORLD_ID = 'folder-lelibrary-hub-world';
+const HUB_DECADES_ID = 'folder-lelibrary-hub-decades';
+// Folders filled per library at push time: left out until a push gave them
+// at least one tab.
+const HUB_TABBED = new Set([HUB_GENRES_ID, HUB_WORLD_ID, HUB_DECADES_ID]);
+// Folders that read stored TMDB facts / library rows from the database:
+// left out without it (their rows are never declared).
+const HUB_NEEDS_FACTS = new Set([
+  'folder-lelibrary-hub-new', 'folder-lelibrary-hub-added', 'folder-lelibrary-hub-top',
+  HUB_DECADES_ID, HUB_WORLD_ID, 'folder-lelibrary-hub-family', 'folder-lelibrary-hub-length',
+]);
 // A genre gets a tab once the library owns this many of its titles; a small
 // library falls back to a lower bar so the folder is not empty for it.
 const GENRE_TAB_MIN = 10;
@@ -233,6 +278,55 @@ function expandHubGenres(collections, counts) {
   });
 }
 
+// World Cinema: a language gets a tab once the library owns this many of its
+// titles of one kind (smaller than Genres: languages split a library more
+// finely); a small library falls back to a lower bar.
+const WORLD_TAB_MIN = 5;
+const WORLD_TAB_FALLBACK_MIN = 2;
+const WORLD_TAB_MAX = 30;
+// By Decade: the same bars; at most 7 decades x 2 kinds.
+const DECADE_TAB_MIN = 5;
+const DECADE_TAB_FALLBACK_MIN = 2;
+const DECADE_TAB_MAX = 14;
+
+function pickTabs(list, min, fallbackMin, max) {
+  const all = Array.isArray(list) ? list : [];
+  let picked = all.filter((entry) => entry.count >= min);
+  if (picked.length < 3) picked = all.filter((entry) => entry.count >= fallbackMin);
+  return picked.slice(0, max);
+}
+
+// The Hub's World Cinema and By Decade folders for one library, from
+// hub-shelves ownedTabCounts (already in tab order). Pure: the push supplies
+// the counts. A folder with no tab stays genre-less and is left out.
+function expandHubTabs(collections, tabs) {
+  const chosen = {
+    [HUB_WORLD_ID]: { variant: 'world', entries: pickTabs(tabs?.world, WORLD_TAB_MIN, WORLD_TAB_FALLBACK_MIN, WORLD_TAB_MAX) },
+    [HUB_DECADES_ID]: { variant: 'decades', entries: pickTabs(tabs?.decades, DECADE_TAB_MIN, DECADE_TAB_FALLBACK_MIN, DECADE_TAB_MAX) },
+  };
+  return (Array.isArray(collections) ? collections : []).map((raw) => {
+    const collection = withHubExtras(raw);
+    if (!collection || collection.id !== HUB_ID || !Array.isArray(collection.folders)) return raw;
+    return {
+      ...collection,
+      folders: collection.folders.map((folder) => {
+        const plan = chosen[folder?.id];
+        if (!plan) return folder;
+        const pattern = new RegExp(`^([a-z]+)-(?:movies|series)-${plan.variant}$`);
+        const prefix = (String(folder.catalogSources?.[0]?.catalogId || '').match(pattern) || [])[1];
+        if (!prefix) return folder;
+        return {
+          ...folder,
+          catalogSources: plan.entries.map((entry) => ({
+            addonId: '', addonUrl: '', catalogId: `${prefix}-${entry.kind}-${plan.variant}`,
+            type: entry.kind === 'movies' ? 'movie' : 'series', genre: entry.name,
+          })),
+        };
+      }),
+    };
+  });
+}
+
 function withHubExtras(collection) {
   if (!collection || collection.id !== HUB_ID || !Array.isArray(collection.folders)) return collection;
   const movies = collection.folders.find((folder) => folder?.id === 'folder-lelibrary-hub-movies');
@@ -254,10 +348,9 @@ function withHubExtras(collection) {
       focusGifEnabled: true,
       // Like Movies and Shows: the folder's own cover is its backdrop.
       ...(art ? { heroBackdropUrl: art.coverImageUrl } : {}),
-      catalogSources: [
-        { addonId: '', addonUrl: '', catalogId: `${prefix}-movies-${extra.variant}`, type: 'movie', genre: '' },
-        { addonId: '', addonUrl: '', catalogId: `${prefix}-series-${extra.variant}`, type: 'series', genre: '' },
-      ],
+      catalogSources: extra.sources.map(([kind, variant]) => (
+        { addonId: '', addonUrl: '', catalogId: `${prefix}-${kind}-${variant}`, type: kind === 'movies' ? 'movie' : 'series', genre: '' }
+      )),
     };
     // In its Hub place: right after the nearest Hub folder that comes before
     // it (New Releases after Shows, 4K after New Releases...), else last.
@@ -277,9 +370,9 @@ function withHubExtras(collection) {
 // from the folder's own catalogue, see generated-covers.ts collectGeneratedArt).
 // Only folders without hand-made art use it; folders with art keep their URLs.
 // `libraryFacts`: whether this install keeps TMDB facts in the library
-// database (the indexed engine). New Releases needs them; without them its
-// rows are never declared, so the Hub folder is left out. Default: ask the
-// engine.
+// database (the indexed engine). New Releases and the Hub shelves need them;
+// without them their rows are never declared, so those Hub folders are left
+// out. Default: ask the engine.
 function compileCollectionPlan({ collections = [], homeRows = [], sources = [], externalSources = [], manifestId = '', integration = 'nuvio', hideAnime = false, generatedArt = null, libraryFacts = null } = {}) {
   const factsOn = typeof libraryFacts === 'boolean' ? libraryFacts : (() => {
     try { return require('../library/engine.ts').isIndexed(); } catch { return false; }
@@ -480,10 +573,12 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
     ...collection,
     folders: (Array.isArray(collection?.folders) ? collection.folders : []).map((folder, fi) => {
       if (hideAnime && isAnimeFolder(folder)) return null;
-      // The Genres folder only goes out once a push has filled in its genres.
-      if (folder?.id === HUB_GENRES_ID && !(Array.isArray(folder.catalogSources) && folder.catalogSources.some((source) => String(source?.genre || '').trim()))) return null;
-      // New Releases reads stored TMDB dates: only with the library database.
-      if (folder?.id === HUB_NEW_ID && !factsOn) return null;
+      // Genres, World Cinema and By Decade only go out once a push has filled
+      // in their tabs.
+      if (HUB_TABBED.has(folder?.id) && !(Array.isArray(folder.catalogSources) && folder.catalogSources.some((source) => String(source?.genre || '').trim()))) return null;
+      // New Releases and the shelves read stored TMDB facts: only with the
+      // library database.
+      if (HUB_NEEDS_FACTS.has(folder?.id) && !factsOn) return null;
       const hubArt = HUB_FOLDER_ART[String(folder?.id || '')];
       const folderId = folder?.id || `folder-${ci}-${fi}`;
       const merged = { ...folder, ...(hubArt ? { ...hubArt, focusGifEnabled: true } : {}) };
@@ -547,6 +642,7 @@ export interface CollectionPlanApi {
   companionGatewayLabel: any;
   withHubExtras: any;
   expandHubGenres: any;
+  expandHubTabs: any;
 }
 
-module.exports = { compileCollectionPlan, cloneNativeSource, upgradeCuratedSourceId, isLeLibrarySource, isAnimeSource, sourceCatalogId, companionGatewayLabel, withHubExtras, expandHubGenres } satisfies CollectionPlanApi;
+module.exports = { compileCollectionPlan, cloneNativeSource, upgradeCuratedSourceId, isLeLibrarySource, isAnimeSource, sourceCatalogId, companionGatewayLabel, withHubExtras, expandHubGenres, expandHubTabs } satisfies CollectionPlanApi;

@@ -82,12 +82,16 @@ function assembleMetas(rows, userKey) {
   return metas;
 }
 
-// `rank` (TMDB id -> YYYY-MM-DD) overrides the setup's sort: New Releases is
-// always newest first, then by name.
+// `rank` (TMDB id -> YYYY-MM-DD / ISO time / score) overrides the setup's
+// sort: New Releases and Recently Added are always newest first, Top Rated
+// best first, then by name.
 function sortMetas(metas, sortBy, rank = null) {
   if (rank instanceof Map) {
-    const at = (m) => rank.get(Number(m.tmdbId)) || '';
-    metas.sort((a, b) => at(b).localeCompare(at(a)) || (a.name || '').localeCompare(b.name || '', 'en-US'));
+    const at = (m) => rank.get(Number(m.tmdbId)) ?? '';
+    const higher = (x, y) => (typeof x === 'number' && typeof y === 'number'
+      ? y - x
+      : (String(y) > String(x) ? 1 : String(y) < String(x) ? -1 : 0));
+    metas.sort((a, b) => higher(at(a), at(b)) || (a.name || '').localeCompare(b.name || '', 'en-US'));
   } else if (sortBy === 'data_lancamento') {
     metas.sort((a, b) => (b.released || '').localeCompare(a.released || ''));
   } else if (sortBy === 'titulo') {

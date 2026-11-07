@@ -182,7 +182,9 @@ test('an old Hub gains New Releases right after Shows, with its own art', () => 
   const upgraded = withHubExtras(hub);
   assert.deepEqual(upgraded.folders.map((f) => f.id), [
     'folder-lelibrary-hub-movies', 'folder-lelibrary-hub-shows', 'folder-lelibrary-hub-new',
-    'folder-lelibrary-hub-4k', 'folder-lelibrary-hub-hdr', 'folder-lelibrary-hub-genres', 'folder-mine',
+    'folder-lelibrary-hub-added', 'folder-lelibrary-hub-top',
+    'folder-lelibrary-hub-4k', 'folder-lelibrary-hub-hdr', 'folder-lelibrary-hub-genres',
+    'folder-lelibrary-hub-decades', 'folder-lelibrary-hub-world', 'folder-lelibrary-hub-family', 'folder-lelibrary-hub-length', 'folder-mine',
   ]);
   const added = upgraded.folders[2];
   assert.equal(added.title, 'New Releases');
@@ -191,7 +193,7 @@ test('an old Hub gains New Releases right after Shows, with its own art', () => 
   assert.equal(withHubExtras(upgraded), upgraded, 'never added twice');
   // A Hub where the person moved Shows to the end: New Releases follows Shows.
   const moved = withHubExtras({ ...hub, folders: [hub.folders[0], ...hub.folders.slice(2), hub.folders[1]] });
-  assert.deepEqual(moved.folders.slice(-2).map((f) => f.id), ['folder-lelibrary-hub-shows', 'folder-lelibrary-hub-new']);
+  assert.deepEqual(moved.folders.slice(-4).map((f) => f.id), ['folder-lelibrary-hub-shows', 'folder-lelibrary-hub-new', 'folder-lelibrary-hub-added', 'folder-lelibrary-hub-top']);
 
   const withDb = compileCollectionPlan({ collections: [hub], integration: 'nuvio', manifestId: 'community.lelibrary.selfhosted', libraryFacts: true });
   const planned = withDb.collections[0].folders.find((f) => f.id === 'folder-lelibrary-hub-new');

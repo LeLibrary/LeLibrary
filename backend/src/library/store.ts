@@ -804,7 +804,7 @@ async function markMatchSkipped(scopeId) {
 
 const ROW_COLUMNS = `id, provider, source_id, name, norm_title, media_type, season, episode,
             season_start, season_end, episode_end, size, source_created_at, source_updated_at,
-            raw, match_meta, tmdb_id, imdb_id, entity_key, identity_status, search_alt`;
+            raw, match_meta, tmdb_id, imdb_id, entity_key, identity_status, search_alt, first_seen_at`;
 
 async function catalogRows(scopeId, mediaType, provider = null) {
   const pool = db.getPool();

@@ -75,7 +75,7 @@ function cleanCollections(value: unknown): CollectionDoc[] {
   return value
     .filter((entry): entry is CollectionDoc =>
       isRecord(entry) && typeof entry['id'] === 'string' && Array.isArray(entry['folders']))
-    // An older Hub shows its New Releases, 4K, HDR and Genres folders, as a push sends them.
+    // An older Hub shows its newer folders (New Releases, 4K, HDR, Genres, the shelves), as a push sends them.
     .map((collection) => withHubExtras(collection, origin));
 }
 

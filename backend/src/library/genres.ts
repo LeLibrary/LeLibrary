@@ -256,29 +256,44 @@ const CONCURRENCY = 4;
 // aired episode): running shows weekly, ended ones every 90 days.
 const TV_RUNNING_DAYS = 7;
 const TV_ENDED_DAYS = 90;
+// Films out less than a year still gather votes (Top Rated's vote floor), so
+// they are read again monthly; older films keep what they have.
+const FILM_RECENT_DAYS = 365;
+const FILM_RECENT_REFRESH_DAYS = 30;
+// The fill's version, stored per row (facts_v). Bump it when a new field is
+// read from the same TMDB reply: every title is then read once more.
+//   1  dates (New Releases)
+//   2  vote average/count, runtime, UK certification (Hub shelves)
+const FACTS_VERSION = 2;
 
 // Titles in this library without facts yet, or stored before keywords,
 // language, the adult flag, the certification or the dates were kept (NULL =
-// never read). Then shows whose latest episode may have moved: running shows
-// weekly, ended ones every 90 days (a revival). Never-read titles go first.
+// never read), or by an older fill (facts_v below FACTS_VERSION). Then shows
+// whose latest episode may have moved: running shows weekly, ended ones every
+// 90 days (a revival), and films out less than a year monthly (votes).
+// Never-read titles go first.
 async function missing(scopeId: string, limit: number): Promise<{ apiType: 'movie' | 'tv'; tmdbId: number }[]> {
   const pool = await store.ensure();
   const { rows } = await pool.query(
     `SELECT api_type, tmdb_id FROM (
        SELECT DISTINCT CASE WHEN i.media_type = 'movie' THEN 'movie' ELSE 'tv' END AS api_type, i.tmdb_id,
-              (g.tmdb_id IS NOT NULL AND g.keyword_ids IS NOT NULL AND g.adult IS NOT NULL AND g.dates_at IS NOT NULL) AS refresh
+              (g.tmdb_id IS NOT NULL AND g.keyword_ids IS NOT NULL AND g.adult IS NOT NULL AND g.dates_at IS NOT NULL
+               AND coalesce(g.facts_v, 0) >= $5) AS refresh
          FROM lib_items i
          LEFT JOIN lib_tmdb_genres g
            ON g.media_type = CASE WHEN i.media_type = 'movie' THEN 'movie' ELSE 'tv' END AND g.tmdb_id = i.tmdb_id
         WHERE i.scope_id = $1 AND i.removed_at IS NULL AND i.match_status = 'matched' AND i.tmdb_id IS NOT NULL
           AND (g.tmdb_id IS NULL OR g.keyword_ids IS NULL OR g.adult IS NULL OR g.dates_at IS NULL
+               OR coalesce(g.facts_v, 0) < $5
                OR (g.media_type = 'tv' AND (
                      (g.in_production IS NOT FALSE AND g.dates_at < now() - make_interval(days => $3))
-                     OR g.dates_at < now() - make_interval(days => $4))))
+                     OR g.dates_at < now() - make_interval(days => $4)))
+               OR (g.media_type = 'movie' AND g.release_date > current_date - $6::int
+                   AND g.dates_at < now() - make_interval(days => $7)))
      ) todo
      ORDER BY refresh
      LIMIT $2`,
-    [scopeId, limit, TV_RUNNING_DAYS, TV_ENDED_DAYS]
+    [scopeId, limit, TV_RUNNING_DAYS, TV_ENDED_DAYS, FACTS_VERSION, FILM_RECENT_DAYS, FILM_RECENT_REFRESH_DAYS]
   );
   return rows.map((row: Record<string, unknown>) => ({ apiType: row['api_type'] === 'movie' ? 'movie' : 'tv', tmdbId: Number(row['tmdb_id']) }));
 }
@@ -288,6 +303,9 @@ type Facts = {
   // Film: release date. Show: first air date, latest aired episode date and
   // whether TMDB says it is still running. YYYY-MM-DD or null (never guessed).
   releaseDate: string | null; lastAirDate: string | null; inProduction: boolean | null;
+  // Hub shelves: TMDB vote average (0-10) and count, film runtime in minutes
+  // (null for shows and unknown runtimes) and the UK certification.
+  voteAverage: number | null; voteCount: number | null; runtime: number | null; certificationGb: string | null;
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -307,15 +325,30 @@ function datesFrom(apiType: 'movie' | 'tv', data: any): Pick<Facts, 'releaseDate
   };
 }
 
+// Top Rated, Short or Long: votes and runtime off the same reply. A runtime
+// of 0 is TMDB's "unknown", kept as null (never guessed).
+function shelfFactsFrom(apiType: 'movie' | 'tv', data: any): Pick<Facts, 'voteAverage' | 'voteCount' | 'runtime'> {
+  const average = Number(data?.vote_average);
+  const count = Number(data?.vote_count);
+  const runtime = Number(data?.runtime);
+  return {
+    voteAverage: Number.isFinite(average) && average >= 0 && average <= 10 ? Math.round(average * 1000) / 1000 : null,
+    voteCount: Number.isInteger(count) && count >= 0 ? count : null,
+    runtime: apiType === 'movie' && Number.isInteger(runtime) && runtime > 0 ? runtime : null,
+  };
+}
+
 // US certification off the same TMDB reply: films carry it in release_dates,
 // shows in content_ratings. Adult content filtering reads this (NC-17 / X for
 // films, TV-MA for shows); a missing rating hides nothing.
-function certificationFrom(apiType: 'movie' | 'tv', data: any): string | null {
+// `region` 'GB' gives the UK one (Family Friendly reads it when the US has
+// none).
+function certificationFrom(apiType: 'movie' | 'tv', data: any, region: 'US' | 'GB' = 'US'): string | null {
   const entries = apiType === 'movie'
     ? data?.release_dates?.results
     : data?.content_ratings?.results;
   if (!Array.isArray(entries)) return null;
-  const us = entries.find((entry: any) => entry?.iso_3166_1 === 'US') || null;
+  const us = entries.find((entry: any) => entry?.iso_3166_1 === region) || null;
   if (!us) return null;
   if (apiType === 'tv') {
     const rating = typeof us.rating === 'string' ? us.rating.trim() : '';
@@ -349,12 +382,19 @@ async function fetchFacts(apiKey: string, apiType: 'movie' | 'tv', tmdbId: numbe
       adult: data.adult === true,
       certification: certificationFrom(apiType, data),
       ...datesFrom(apiType, data),
+      ...shelfFactsFrom(apiType, data),
+      certificationGb: certificationFrom(apiType, data, 'GB'),
     };
   } catch (err: any) {
     const status = Number(err?.response?.status) || 0;
     if (status === 401) return 'rejected';
     // Gone from TMDB: store "nothing" so it is never asked again.
-    if (status === 404) return { genreIds: [], keywordIds: [], lang: null, adult: false, certification: null, releaseDate: null, lastAirDate: null, inProduction: false };
+    if (status === 404) {
+      return {
+        genreIds: [], keywordIds: [], lang: null, adult: false, certification: null, releaseDate: null, lastAirDate: null, inProduction: false,
+        voteAverage: null, voteCount: null, runtime: null, certificationGb: null,
+      };
+    }
     return null; // try again on a later pass
   }
 }
@@ -384,16 +424,20 @@ async function fillForScope(scopeId: string, setupKey: string | null | undefined
       if (facts === null) continue;
       await pool.query(
         `INSERT INTO lib_tmdb_genres (media_type, tmdb_id, genre_ids, keyword_ids, orig_lang, adult, certification,
-                                      release_date, last_air_date, in_production, dates_at, fetched_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
+                                      release_date, last_air_date, in_production,
+                                      vote_average, vote_count, runtime, certification_gb, facts_v, dates_at, fetched_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now(), now())
          ON CONFLICT (media_type, tmdb_id) DO UPDATE
            SET genre_ids = EXCLUDED.genre_ids, keyword_ids = EXCLUDED.keyword_ids,
                orig_lang = EXCLUDED.orig_lang, adult = EXCLUDED.adult,
                certification = EXCLUDED.certification, release_date = EXCLUDED.release_date,
                last_air_date = EXCLUDED.last_air_date, in_production = EXCLUDED.in_production,
-               dates_at = now(), fetched_at = now()`,
+               vote_average = EXCLUDED.vote_average, vote_count = EXCLUDED.vote_count,
+               runtime = EXCLUDED.runtime, certification_gb = EXCLUDED.certification_gb,
+               facts_v = EXCLUDED.facts_v, dates_at = now(), fetched_at = now()`,
         [job.apiType, job.tmdbId, facts.genreIds, facts.keywordIds, facts.lang, facts.adult, facts.certification,
-          facts.releaseDate, facts.lastAirDate, facts.inProduction]
+          facts.releaseDate, facts.lastAirDate, facts.inProduction,
+          facts.voteAverage, facts.voteCount, facts.runtime, facts.certificationGb, FACTS_VERSION]
       );
       filled++;
     }
@@ -504,6 +548,8 @@ export interface GenresApi {
   fillForScope: typeof fillForScope;
   fetchFacts: typeof fetchFacts;
   datesFrom: typeof datesFrom;
+  shelfFactsFrom: typeof shelfFactsFrom;
+  FACTS_VERSION: number;
   tmdbIdsWithGenre: typeof tmdbIdsWithGenre;
   idsMatchingRules: typeof idsMatchingRules;
   adultTmdbIds: typeof adultTmdbIds;
@@ -511,4 +557,4 @@ export interface GenresApi {
   genreVersion: typeof genreVersion;
 }
 
-module.exports = { GENRES, ADULT_CERTIFICATIONS, genreBySlug, genreByName, genresFor, nameFor, matchesRule, ruleSql, fillForScope, fetchFacts, datesFrom, tmdbIdsWithGenre, idsMatchingRules, adultTmdbIds, ownedGenreCounts, genreVersion } satisfies GenresApi;
+module.exports = { GENRES, ADULT_CERTIFICATIONS, genreBySlug, genreByName, genresFor, nameFor, matchesRule, ruleSql, fillForScope, fetchFacts, datesFrom, shelfFactsFrom, FACTS_VERSION, tmdbIdsWithGenre, idsMatchingRules, adultTmdbIds, ownedGenreCounts, genreVersion } satisfies GenresApi;
