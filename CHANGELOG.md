@@ -13,6 +13,7 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - A new API keys section. TMDB, TVDB, OMDb and MDBList now have the same cards as the library providers, and the MDBList card shows which account it is connected to.
 - A separate Integrations section for Simkl and AniList. Once you connect, the card shows the account name straight away.
 - Simkl rows: connect Simkl to add Up Next, Airing Next, Plan to Watch, Watching and Completed rows.
+- Watch history, under Integrations. LeLibrary can read what you have watched in Nuvio, Simkl, AniList and (if you turn it on) MDBList, to add Continue Watching and Up Next rows. You can also hide films you have watched and shows you are caught up on, and copy what you finish in Nuvio to Simkl, MDBList or AniList. Everything is optional and off until you turn it on, except reading history from accounts you connect. Live scrobbling stays with Nuvio: sign in to Simkl or MDBList inside the Nuvio app for that.
 - Your MDBList lists: with an MDBList key you can pick your own lists, the lists you liked, your watchlist and Up Next straight from the Home rows and folder pickers, without adding each list somewhere else first.
 - AniList rows: connect AniList to get Watching, Plan to Watch and Completed anime rows, private lists included.
 - Content filters, on Settle In and Move In: one Setup section with Use Main Metadata, Hide anime, Hide adult content and the categories you want left out (Anime, Animation, Reality TV, Talk Shows, Kids, Family, Musical, Documentary, News, Soap Operas, Horror). A title is hidden when any of its categories is ticked, everywhere Hide anime already worked: My Movies, My Shows, the Hub, collections and search. Hide adult content drops titles TMDB flags as adult or rates NC-17 or X (films) and TV-MA (shows); unrated titles stay. Titles TMDB has not described yet are never hidden by a guess.
@@ -21,6 +22,7 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ### Changes
 
+- Simkl now uses Simkl's newer sign-in. Connections made before this keep working for now; reconnect Simkl once to keep it working after 2027.
 - On the edit page, connecting or disconnecting Simkl, AniList or Trakt now waits for Save like every other change. The card says "not saved yet" until you save, and Clear my edits undoes it.
 - Clicking a key card now also switches it on, the same as clicking its switch.
 - Buttons that cannot be pressed yet (for example Unlock before you type a password) now look greyed out instead of ready.
