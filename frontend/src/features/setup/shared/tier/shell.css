@@ -28,6 +28,10 @@
   backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2);
   border-bottom: 1px solid var(--qs-line);
 }
+/* Move In's Ready page: the setup is finished, so the bar no longer sticks
+   over the page and the step tabs / phone progress line step away. */
+.ts.is-done .ts-top { position: static; }
+.ts.is-done .ts-tabs, .ts.is-done .ts-phone-progress { display: none; }
 .ts-bar {
   box-sizing: border-box; display: flex; align-items: center; gap: 12px;
   max-width: calc(860px + 2 * var(--ts-pad)); margin: 0 auto; padding: 10px var(--ts-pad);
