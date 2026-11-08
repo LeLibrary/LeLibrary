@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseGuideVideos, parseOverviewVideo } from '@/features/site/GuideVideos';
+import { readFileSync } from 'node:fs';
+import { parseGuideVideos, parseOverviewVideo, parseVtt } from '@/features/site/GuideVideos';
 
 describe('videos manifest', () => {
   const manifest = {
@@ -26,5 +27,21 @@ describe('videos manifest', () => {
     expect(narrated?.captions).toBe('/guide/videos/quick.vtt?v=1');
     const [other] = parseGuideVideos({ videos: [{ tier: 'quick', src: '/guide/videos/quick.mp4', captions: 'https://evil.example/x.vtt' }] });
     expect(other?.captions).toBeUndefined();
+  });
+});
+
+describe('captions without a <track> element', () => {
+  it('reads the narration WebVTT cues', () => {
+    const cues = parseVtt('WEBVTT\n\n1\n00:00:04.100 --> 00:00:09.889\nWelcome to LeLibrary.\n\n2\n00:01:02.000 --> 00:01:05.500 align:start\nTwo\nlines\n\nbroken --> cue\nskip me\n');
+    expect(cues).toEqual([
+      { start: 4.1, end: 9.889, text: 'Welcome to LeLibrary.' },
+      { start: 62, end: 65.5, text: 'Two\nlines' },
+    ]);
+  });
+
+  it('players never render a <track> (iPhone Safari will not load the video with one)', () => {
+    const src = readFileSync(new URL('./GuideVideos.tsx', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/<track\s/);
+    expect(src).toContain('useCaptions(player');
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
 // Walkthrough videos for each setup tier. The files are hosted-only (a
@@ -14,6 +14,61 @@ export interface GuideVideo {
 }
 
 const MANIFEST_URL = '/guide/videos/videos.json';
+
+// One WebVTT cue: start and end in seconds, plus its text.
+export interface CaptionCue { start: number; end: number; text: string }
+
+function vttSeconds(stamp: string): number | null {
+  const m = stamp.trim().match(/^(?:(\d+):)?(\d{2}):(\d{2})[.,](\d{3})$/);
+  if (!m) return null;
+  return Number(m[1] ?? 0) * 3600 + Number(m[2]) * 60 + Number(m[3]) + Number(m[4]) / 1000;
+}
+
+// A small WebVTT reader for the narration files (cue id, timing line, text).
+export function parseVtt(source: string): CaptionCue[] {
+  const cues: CaptionCue[] = [];
+  for (const block of source.replace(/\r/g, '').split(/\n{2,}/)) {
+    const lines = block.split('\n').filter((line) => line.trim() !== '');
+    const at = lines.findIndex((line) => line.includes('-->'));
+    if (at < 0) continue;
+    const [from = '', rest = ''] = lines[at]!.split('-->');
+    const start = vttSeconds(from);
+    const end = vttSeconds(rest.trim().split(/\s+/)[0] ?? '');
+    const text = lines.slice(at + 1).join('\n');
+    if (start !== null && end !== null && end > start && text) cues.push({ start, end, text });
+  }
+  return cues;
+}
+
+// Subtitles for a player WITHOUT a <track> element. iPhone Safari refused to
+// load the whole video when the player held a <track> (2026-11-08: plain and
+// muted players played, both with a track did not). So the captions are
+// fetched and added through the TextTrack API once the video has metadata;
+// if anything about them fails, the video still plays, just without them.
+export function useCaptions(video: RefObject<HTMLVideoElement | null>, url: string | undefined, label: string) {
+  useEffect(() => {
+    const el = video.current;
+    if (!el || !url || typeof el.addTextTrack !== 'function' || typeof VTTCue === 'undefined') return;
+    let cancelled = false;
+    let added = false;
+    const add = () => {
+      if (added) return;
+      added = true;
+      fetch(url)
+        .then((response) => (response.ok ? response.text() : ''))
+        .then((source) => {
+          if (cancelled || !source) return;
+          const track = el.addTextTrack('subtitles', label, 'en');
+          for (const cue of parseVtt(source)) track.addCue(new VTTCue(cue.start, cue.end, cue.text));
+          track.mode = 'hidden';
+        })
+        .catch(() => { /* no subtitles; the video plays on */ });
+    };
+    if (el.readyState >= 1) add();
+    else el.addEventListener('loadedmetadata', add, { once: true });
+    return () => { cancelled = true; el.removeEventListener('loadedmetadata', add); };
+  }, [video, url, label]);
+}
 const ORDER: GuideVideo['tier'][] = ['quick', 'partial', 'full'];
 
 export function parseGuideVideos(data: unknown): GuideVideo[] {
@@ -74,6 +129,8 @@ export function GuideVideos() {
   }, []);
 
   const current = videos.find((video) => video.tier === active);
+  const player = useRef<HTMLVideoElement>(null);
+  useCaptions(player, current?.captions, t('guide.videos.subtitles'));
   if (!current) return null;
 
   return (
@@ -99,13 +156,13 @@ export function GuideVideos() {
       </div>
       <div className="gd-video-frame">
         <video
+          ref={player}
           key={current.src}
           controls playsInline preload="none"
           {...(current.poster ? { poster: current.poster } : {})}
           aria-label={t(`guide.videos.tiers.${current.tier}`)}
         >
           <source src={current.src} type="video/mp4" />
-          {current.captions && <track kind="subtitles" src={current.captions} srcLang="en" label={t('guide.videos.subtitles')} />}
         </video>
       </div>
     </div>
