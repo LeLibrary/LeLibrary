@@ -456,7 +456,6 @@ html.npv-locked body {
   padding: 6px;
   border-radius: 999px;
   background: var(--npv-glass);
-  -webkit-backdrop-filter: blur(22px) saturate(1.4);
   backdrop-filter: blur(22px) saturate(1.4);
   transition: height 0.2s ease;
 }

@@ -1009,7 +1009,7 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
 .danger-zone p { margin: 0 0 14px; color: var(--muted); font-size: 0.82rem; line-height: 1.6; }
 
 /* Inline modal (confirm pattern: no browser dialogs) */
-.app-modal { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 22px; background: rgba(3, 4, 6, 0.72); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.app-modal { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 22px; background: rgba(3, 4, 6, 0.72); backdrop-filter: blur(6px); }
 .app-modal-box { width: 100%; max-width: 420px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55); padding: 24px; }
 .app-modal-box h3 { margin: 0 0 8px; font-size: 1.02rem; }
 .app-modal-box p { margin: 0 0 18px; color: var(--muted); font-size: 0.84rem; line-height: 1.6; }

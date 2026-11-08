@@ -126,7 +126,6 @@ footer :focus-visible,
   border-bottom: 1px solid var(--border);
   background: rgba(9, 9, 11, 0.86);
   backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   box-shadow: inset 0 1px 0 rgba(245, 158, 11, 0.22);
 }
 
