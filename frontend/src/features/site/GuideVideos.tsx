@@ -38,6 +38,7 @@ export interface OverviewVideo {
   src: string;
   poster?: string;
   duration?: string;
+  captions?: string;
 }
 
 export function parseOverviewVideo(data: unknown): OverviewVideo | null {
@@ -49,6 +50,7 @@ export function parseOverviewVideo(data: unknown): OverviewVideo | null {
   const video: OverviewVideo = { src };
   if (typeof item['poster'] === 'string' && item['poster'].startsWith('/guide/videos/')) video.poster = item['poster'];
   if (typeof item['duration'] === 'string') video.duration = item['duration'];
+  if (typeof item['captions'] === 'string' && item['captions'].startsWith('/guide/videos/')) video.captions = item['captions'];
   return video;
 }
 

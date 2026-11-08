@@ -14,6 +14,8 @@ describe('videos manifest', () => {
 
   it('has no overview when the entry is missing or points elsewhere', () => {
     expect(parseOverviewVideo({ videos: [] })).toBeNull();
+    expect(parseOverviewVideo({ overview: { src: '/guide/videos/o.mp4', captions: '/guide/videos/o.vtt?v=1' } })?.captions).toBe('/guide/videos/o.vtt?v=1');
+    expect(parseOverviewVideo({ overview: { src: '/guide/videos/o.mp4', captions: 'https://evil.example/o.vtt' } })?.captions).toBeUndefined();
     expect(parseOverviewVideo(null)).toBeNull();
     expect(parseOverviewVideo({ overview: { src: 'https://evil.example/x.mp4' } })).toBeNull();
     expect(parseOverviewVideo({ overview: { src: '/guide/videos/o.mp4', poster: 'https://evil.example/p.jpg' } })).toEqual({ src: '/guide/videos/o.mp4' });
