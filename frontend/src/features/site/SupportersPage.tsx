@@ -16,6 +16,7 @@ interface Credit { name: string; href?: string }
 // formatter; since 5.8 every collection cover is LeLibrary's own). Keep in step
 // with README "Special thanks" and collection-assets/ASSET_SOURCES.md.
 const ARTISTS: { handle: string; work: string; href: string; role: string }[] = [
+  { handle: 'farizmohd70', work: 'FR-Badges', href: 'https://github.com/farizmohd70/FR-Badges', role: 'badges' },
   { handle: 'vowl313', work: 'NardBadges', href: 'https://github.com/vowl313/NardBadges', role: 'badges' },
   { handle: 'leonevz', work: 'Elite Badges', href: 'https://github.com/leonevz/Elite-Badges', role: 'badges' },
   { handle: 'sweatycab', work: 'Nuvio Minimalist Badges', href: 'https://github.com/sweatycab/nuvio-minimalist-badges', role: 'badges' },

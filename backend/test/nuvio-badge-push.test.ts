@@ -68,3 +68,13 @@ test('badge blob splice creates a missing badge feature', () => {
 
 
 export interface NuvioBadgePushTestTestModule {};
+
+test('FR-Badges styles resolve to distinct official manifests', () => {
+  const styles = PACKS.filter((pack) => pack.id.startsWith('fr-'));
+  assert.equal(styles.length, 10);
+  assert.equal(new Set(styles.map((pack) => pack.url)).size, 10);
+  for (const pack of styles) {
+    assert.match(pack.url, /^https:\/\/raw\.githubusercontent\.com\/farizmohd70\/FR-Badges\/main\//);
+    assert.equal(resolveBadgePackUrl(pack.id, '', 'https://lelibrary.uk'), pack.url);
+  }
+});

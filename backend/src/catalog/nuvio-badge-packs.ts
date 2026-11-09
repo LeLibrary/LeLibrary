@@ -16,6 +16,16 @@ const PACKS = [
   { id: 'elite', name: 'Elite Badges', url: 'https://raw.githubusercontent.com/leonevz/Elite-Badges/main/badges.json' },
   { id: 'minimal-white', name: 'Minimalist White', url: 'https://raw.githubusercontent.com/sweatycab/nuvio-minimalist-badges/main/badges-white.json' },
   { id: 'minimal-mixed', name: 'Minimalist Mixed', url: 'https://raw.githubusercontent.com/sweatycab/nuvio-minimalist-badges/main/badges-mixed.json' },
+  { id: 'fr-glass', name: 'FR-Badges Glass', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges.json' },
+  { id: 'fr-neon', name: 'FR-Badges Neon', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-neon.json' },
+  { id: 'fr-solid', name: 'FR-Badges Solid', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-solid.json' },
+  { id: 'fr-icon-dark', name: 'FR-Badges Icon Dark', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-icon-dark.json' },
+  { id: 'fr-split', name: 'FR-Badges Split', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-split.json' },
+  { id: 'fr-frost', name: 'FR-Badges Frost', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-frost.json' },
+  { id: 'fr-neon-icon', name: 'FR-Badges Neon Icon', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-neon-icon.json' },
+  { id: 'fr-minimal', name: 'FR-Badges Minimal', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-minimal.json' },
+  { id: 'fr-light', name: 'FR-Badges Light', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-light.json' },
+  { id: 'fr-icon-light', name: 'FR-Badges Icon Light', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-icon-light.json' },
   { id: 'custom', name: 'Custom URL', url: '' },
 ];
 

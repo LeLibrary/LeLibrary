@@ -24,3 +24,5 @@ logos belong to their owners.
 
 The community artwork used before 5.8 has been retired and removed. Thank you
 to the artists who shared it in the Stremio and Nuvio community.
+
+Stream badge credits (separate from collection artwork): [farizmohd70 - FR-Badges](https://github.com/farizmohd70/FR-Badges), [vowl313 - NardBadges](https://github.com/vowl313/NardBadges), [leonevz - Elite Badges](https://github.com/leonevz/Elite-Badges), [sweatycab - Nuvio Minimalist Badges](https://github.com/sweatycab/nuvio-minimalist-badges), and [9mousaa - BetterFormatter](https://github.com/9mousaa/BetterFormatter).

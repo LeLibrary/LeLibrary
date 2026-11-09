@@ -22,6 +22,16 @@ export const BADGE_PACKS: BadgePack[] = [
   { id: 'elite', name: 'Elite Badges', url: 'https://raw.githubusercontent.com/leonevz/Elite-Badges/main/badges.json', description: 'Community premium-styled badge set.' },
   { id: 'minimal-white', name: 'Minimalist White', url: 'https://raw.githubusercontent.com/sweatycab/nuvio-minimalist-badges/main/badges-white.json', description: 'Community high-contrast TV-friendly badges.' },
   { id: 'minimal-mixed', name: 'Minimalist Mixed', url: 'https://raw.githubusercontent.com/sweatycab/nuvio-minimalist-badges/main/badges-mixed.json', description: 'Community mixed-colour minimalist badges.' },
+  { id: 'fr-glass', name: 'FR-Badges Glass', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges.json', description: 'FR-Badges by farizmohd70.' },
+  { id: 'fr-neon', name: 'FR-Badges Neon', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-neon.json', description: 'FR-Badges by farizmohd70.' },
+  { id: 'fr-solid', name: 'FR-Badges Solid', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-solid.json', description: 'FR-Badges by farizmohd70.' },
+  { id: 'fr-icon-dark', name: 'FR-Badges Icon Dark', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-icon-dark.json', description: 'FR-Badges by farizmohd70.' },
+  { id: 'fr-split', name: 'FR-Badges Split', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-split.json', description: 'FR-Badges by farizmohd70.' },
+  { id: 'fr-frost', name: 'FR-Badges Frost', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-frost.json', description: 'FR-Badges by farizmohd70.' },
+  { id: 'fr-neon-icon', name: 'FR-Badges Neon Icon', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-neon-icon.json', description: 'FR-Badges by farizmohd70.' },
+  { id: 'fr-minimal', name: 'FR-Badges Minimal', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-minimal.json', description: 'FR-Badges by farizmohd70.' },
+  { id: 'fr-light', name: 'FR-Badges Light', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-light.json', description: 'FR-Badges by farizmohd70.' },
+  { id: 'fr-icon-light', name: 'FR-Badges Icon Light', url: 'https://raw.githubusercontent.com/farizmohd70/FR-Badges/main/badges-icon-light.json', description: 'FR-Badges by farizmohd70.' },
   { id: 'custom', name: 'Choose your own', url: '', description: 'Paste any HTTPS badge JSON URL.' },
 ];
 

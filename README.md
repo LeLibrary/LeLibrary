@@ -306,6 +306,8 @@ with LeLibrary:
 
 **Stream badges** (the quality and format badges in stream lists):
 
+- [farizmohd70](https://github.com/farizmohd70) for
+  [FR-Badges](https://github.com/farizmohd70/FR-Badges).
 - [vowl313](https://github.com/vowl313) for
   [NardBadges](https://github.com/vowl313/NardBadges).
 - [leonevz](https://github.com/leonevz) for

@@ -68,6 +68,7 @@ export function BadgePackButton({ pack, customUrl, onChange }: {
   onChange: (next: { pack: string; url: string }) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [showFr, setShowFr] = useState(false);
   const selected = BADGE_PACKS.find((entry) => entry.id === pack) ?? BADGE_PACKS[0];
 
   useEffect(() => {
@@ -86,7 +87,7 @@ export function BadgePackButton({ pack, customUrl, onChange }: {
 
   return (
     <>
-      <button type="button" className="badge-open-btn" onClick={() => setOpen(true)}>
+      <button type="button" className="badge-open-btn" onClick={() => { setShowFr(false); setOpen(true); }}>
         <span className="badge-open-copy">
           <strong>{selected?.name ?? 'Badge pack'}</strong>
           <small>Browse every pack with live previews</small>
@@ -98,10 +99,17 @@ export function BadgePackButton({ pack, customUrl, onChange }: {
       {open && (
         <div className="app-modal" role="dialog" aria-modal="true" aria-label="Choose a badge pack">
           <div className="app-modal-box app-modal-wide">
-            <h3>Badge packs</h3>
-            <p>Tick one to apply it - the stream preview updates straight away. Packs are independent of stream formatting; Nuvio imports the pack once per profile.</p>
+            <h3>{showFr ? 'FR-Badges' : 'Badge packs'}</h3>
+            {showFr ? <p>Choose an FR-Badges style. Created by <a href="https://github.com/farizmohd70/FR-Badges" target="_blank" rel="noreferrer">farizmohd70</a>.</p> : <p>Tick one to apply it - the stream preview updates straight away. Packs are independent of stream formatting; Nuvio imports the pack once per profile.</p>}
             <div className="pack-grid">
-              {BADGE_PACKS.map((entry) => (
+              {!showFr && (
+                <button type="button" className={`pack-card${pack.startsWith('fr-') ? ' active' : ''}`} onClick={() => setShowFr(true)}>
+                  <strong>FR-Badges</strong>
+                  <small>Choose from 10 styles</small>
+                  <PackPreview pack={pack.startsWith('fr-') ? pack : 'fr-glass'} customUrl="" />
+                </button>
+              )}
+              {BADGE_PACKS.filter((entry) => showFr === entry.id.startsWith('fr-')).map((entry) => (
                 <button
                   key={entry.id}
                   type="button"
@@ -116,7 +124,7 @@ export function BadgePackButton({ pack, customUrl, onChange }: {
                 </button>
               ))}
             </div>
-            {pack === 'custom' && (
+            {!showFr && pack === 'custom' && (
               <label className="setup-field">
                 <span>Badge JSON URL</span>
                 <input
@@ -131,6 +139,7 @@ export function BadgePackButton({ pack, customUrl, onChange }: {
               </label>
             )}
             <div className="app-modal-actions">
+              {showFr && <button type="button" className="setup-primary" onClick={() => setShowFr(false)}>Back to badge packs</button>}
               <button type="button" className="setup-primary" onClick={() => setOpen(false)}>
                 Done
               </button>

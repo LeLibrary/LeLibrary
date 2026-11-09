@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchBadges, packGallery } from '@/features/setup/shared/BadgePackPicker';
+import { BADGE_PACKS, matchBadges, packGallery } from '@/features/setup/shared/BadgePackPicker';
 
 const PACK = {
   groups: [{ id: 'gq', color: '#27C04F' }],
@@ -25,4 +25,10 @@ describe('badge matcher', () => {
       'https://x.test/a.png',
     ]);
   });
+});
+
+it('offers ten distinct FR-Badges styles', () => {
+  const styles = BADGE_PACKS.filter((pack) => pack.id.startsWith('fr-'));
+  expect(styles).toHaveLength(10);
+  expect(new Set(styles.map((pack) => pack.url)).size).toBe(10);
 });

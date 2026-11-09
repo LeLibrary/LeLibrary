@@ -69,7 +69,7 @@ describe('quick look reference layout', () => {
     const html = render();
     expect(html).toContain('<option value="betterposter"');
     expect(html).not.toContain('qs-poster');
-    expect(html.match(/class="qs-chip( |")/g)?.length ?? 0).toBe(BADGE_PACKS.length);
+    expect(html.match(/class="qs-chip( |")/g)?.length ?? 0).toBe(BADGE_PACKS.filter((pack) => !pack.id.startsWith('fr-')).length);
     expect(html).toContain('aria-label="Stream display style"');
     expect(html).toMatch(/aria-checked="true" class="qs-stream is-selected"/);
     expect(html).toContain('more styles');
@@ -166,8 +166,8 @@ describe('quick look reference layout', () => {
     expect(html).not.toContain('<figcaption>');
   });
 
-  it('ships all nine real badge packs with the local one default', () => {
-    expect(BADGE_PACKS.map((p) => p.id)).toEqual([
+  it('ships the existing badge packs with the local one default', () => {
+    expect(BADGE_PACKS.filter((p) => !p.id.startsWith('fr-')).map((p) => p.id)).toEqual([
       'lelibrary-premium', 'nard-full', 'nard-slim', 'better-colored',
       'better-mono', 'elite', 'minimal-white', 'minimal-mixed', 'custom',
     ]);
