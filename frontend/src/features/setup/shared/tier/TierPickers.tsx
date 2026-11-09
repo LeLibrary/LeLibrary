@@ -36,6 +36,7 @@ export function BadgePackStrip({ pack, customUrl, onChange }: {
         <PackPreview pack={pack} customUrl={customUrl} />
       </div>
       <div className="qs-chips" role="radiogroup" aria-label="Badge pack">
+        <BadgePackButton pack={pack} customUrl={customUrl} onChange={onChange} shortcut />
         {BADGE_PACKS.filter((entry) => !entry.id.startsWith('fr-')).map((entry) => (
           <button
             key={entry.id}

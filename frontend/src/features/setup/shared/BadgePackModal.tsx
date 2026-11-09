@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import {
   BADGE_PACKS,
   LOCAL_BADGE_BASE,
@@ -62,10 +63,11 @@ export function PackPreview({ pack, customUrl }: { pack: string; customUrl: stri
 // Badge packs behind one button: the modal shows every pack as a card with
 // its live preview underneath. Ticking a card applies it immediately, so the
 // stream preview updates while the modal is still open; Done just closes it.
-export function BadgePackButton({ pack, customUrl, onChange }: {
+export function BadgePackButton({ pack, customUrl, onChange, shortcut = false }: {
   pack: string;
   customUrl: string;
   onChange: (next: { pack: string; url: string }) => void;
+  shortcut?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [showFr, setShowFr] = useState(false);
@@ -87,16 +89,24 @@ export function BadgePackButton({ pack, customUrl, onChange }: {
 
   return (
     <>
-      <button type="button" className="badge-open-btn" onClick={() => { setShowFr(false); setOpen(true); }}>
-        <span className="badge-open-copy">
-          <strong>{selected?.name ?? 'Badge pack'}</strong>
-          <small>Browse every pack with live previews</small>
-        </span>
-        <span className="badge-open-preview">
-          <PackPreview pack={pack} customUrl={customUrl} />
-        </span>
-      </button>
-      {open && (
+      {shortcut ? (
+        <button type="button" role="radio" aria-checked={pack.startsWith('fr-')} aria-haspopup="dialog"
+          className={`qs-chip${pack.startsWith('fr-') ? ' is-selected' : ''}`}
+          onClick={() => { setShowFr(true); setOpen(true); }}>
+          FR-Badges
+        </button>
+      ) : (
+        <button type="button" className="badge-open-btn" onClick={() => { setShowFr(false); setOpen(true); }}>
+          <span className="badge-open-copy">
+            <strong>{selected?.name ?? 'Badge pack'}</strong>
+            <small>Browse every pack with live previews</small>
+          </span>
+          <span className="badge-open-preview">
+            <PackPreview pack={pack} customUrl={customUrl} />
+          </span>
+        </button>
+      )}
+      {open && createPortal(
         <div className="app-modal" role="dialog" aria-modal="true" aria-label="Choose a badge pack">
           <div className="app-modal-box app-modal-wide">
             <h3>{showFr ? 'FR-Badges' : 'Badge packs'}</h3>
@@ -145,7 +155,7 @@ export function BadgePackButton({ pack, customUrl, onChange }: {
               </button>
             </div>
           </div>
-        </div>
+        </div>, document.body
       )}
     </>
   );
