@@ -149,6 +149,20 @@ export interface BadgePreviewState {
   gallery: BadgeGalleryItem[];
 }
 
+// Share requests across the selected preview and browser cards. Browsing a
+// family of styles must not exhaust the import proxy's per-minute limit.
+const previewRequests = new Map<string, Promise<unknown>>();
+function fetchPreview(url: string): Promise<unknown> {
+  const cached = previewRequests.get(url);
+  if (cached) return cached;
+  if (previewRequests.size >= 50) previewRequests.delete(previewRequests.keys().next().value as string);
+  const request = fetch(`/api/import-json?url=${encodeURIComponent(url)}`, { credentials: 'same-origin' })
+    .then((response) => { if (!response.ok) throw new Error('unavailable'); return response.json(); })
+    .catch((error: unknown) => { previewRequests.delete(url); throw error; });
+  previewRequests.set(url, request);
+  return request;
+}
+
 // Resolves the selected pack into renderable badges. The local pack ships its
 // own PNGs; remote packs go through the SSRF-hardened JSON proxy and are
 // matched client-side against the same sample stream text Nuvio uses.
@@ -163,8 +177,7 @@ export function useBadgePreview(pack: string, customUrl?: string): BadgePreviewS
     if (!isValidBadgeUrl(resolvedUrl)) { setState({ mode: 'none', loading: false, badges: [], gallery: [] }); return; }
     let cancelled = false;
     setState({ mode: 'none', loading: true, badges: [], gallery: [] });
-    fetch(`/api/import-json?url=${encodeURIComponent(resolvedUrl)}`, { credentials: 'same-origin' })
-      .then((response) => { if (!response.ok) throw new Error('unavailable'); return response.json(); })
+    fetchPreview(resolvedUrl)
       .then((data) => {
         if (cancelled) return;
         const badges = matchBadges(data, resolvedUrl);
