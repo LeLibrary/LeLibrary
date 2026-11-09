@@ -39,6 +39,7 @@
 .sp-artist { display: flex; align-items: center; gap: 14px; height: 100%; padding: 16px; border: 1px solid var(--border); border-radius: 18px; background: #111114; color: var(--text); text-decoration: none; transition: border-color 0.2s, transform 0.2s, background 0.2s; }
 .sp-artist:hover { border-color: rgba(245, 158, 11, 0.5); background: #141417; transform: translateY(-2px); }
 .sp-mono { display: grid; flex: none; place-items: center; width: 46px; height: 46px; border-radius: 14px; color: #fff; font: 700 0.9rem var(--mono, monospace); letter-spacing: 0.02em; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18); }
+.sp-avatar { object-fit: cover; }
 .sp-artist-text { display: grid; gap: 2px; min-width: 0; }
 .sp-artist-text strong { overflow: hidden; font-size: 0.98rem; text-overflow: ellipsis; white-space: nowrap; }
 .sp-artist-text > span { color: var(--muted); font-size: 0.8rem; line-height: 1.4; }

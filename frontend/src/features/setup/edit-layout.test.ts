@@ -68,6 +68,17 @@ describe('edit save body', () => {
     expect(body(savedSnapshot())).toBeNull();
   });
 
+  it.each(['quick', 'partial', 'full'] as const)('marks an FR style change unsaved and saves it in %s', (tier) => {
+    const saved = snapshotFromSaved({ nuvioBadgePack: 'fr-glass' }, {}, 'Living room');
+    const current = { ...saved, badgePack: { pack: 'fr-neon', url: '' } };
+    const input = { saved, savedName: 'Living room', savedTier: tier, tier, providerServices: [], clearKeys: [] };
+    expect(editSaveBody({ ...input, current: saved })).toBeNull();
+    expect(editSaveBody({ ...input, current })).toMatchObject({ config: { nuvioBadgePack: 'fr-neon' } });
+    const reloaded = snapshotFromSaved({ nuvioBadgePack: 'fr-neon' }, {}, 'Living room');
+    expect(editSaveBody({ ...input, current: reloaded, saved: reloaded })).toBeNull();
+    expect(editSaveBody({ ...input, current: saved })).toBeNull(); // Reverting clears unsaved.
+  });
+
   it('never re-sends a prefilled saved key, only a changed one', () => {
     const current = savedSnapshot();
     current.keys = { ...current.keys, torboxApiKey: 'tb-new' };

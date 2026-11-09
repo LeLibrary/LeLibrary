@@ -24,7 +24,7 @@ export function PackPreview({ pack, customUrl }: { pack: string; customUrl: stri
     );
   }
   if (state.loading) return <span className="badge-empty">Loading badges…</span>;
-  if (state.badges.length === 0) {
+  if (state.badges.length === 0 && state.gallery.length === 0) {
     return (
       <span className="badge-empty">
         {pack === 'custom' ? 'Paste a badge JSON URL below to preview it.' : 'Could not load this pack.'}
@@ -47,8 +47,8 @@ export function PackPreview({ pack, customUrl }: { pack: string; customUrl: stri
       </span>
       {state.gallery.length > 0 && (
         <>
-          <span className="pack-gallery-label">Full set</span>
-          <span className="badge-strip pack-gallery" aria-label={`${preset?.name ?? pack} full set`}>
+          <span className="pack-gallery-label">Sample badges</span>
+          <span className="badge-strip pack-gallery" aria-label={`${preset?.name ?? pack} sample badges`}>
             {state.gallery.map((item) => (
               <img key={item.imageURL} src={item.imageURL} alt={item.name} loading="lazy" title={item.name} />
             ))}

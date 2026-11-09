@@ -15,8 +15,8 @@ interface Credit { name: string; href?: string }
 // The artists whose images ship with LeLibrary (badge packs in the stream
 // formatter; since 5.8 every collection cover is LeLibrary's own). Keep in step
 // with README "Special thanks" and collection-assets/ASSET_SOURCES.md.
-const ARTISTS: { handle: string; work: string; href: string; role: string }[] = [
-  { handle: 'farizmohd70', work: 'FR-Badges', href: 'https://github.com/farizmohd70/FR-Badges', role: 'badges' },
+const ARTISTS: { handle: string; work: string; href: string; role: string; avatar?: string }[] = [
+  { handle: 'farizmohd70', work: 'FR-Badges', href: 'https://github.com/farizmohd70/FR-Badges', role: 'badges', avatar: '/supporters/farizmohd70.png' },
   { handle: 'vowl313', work: 'NardBadges', href: 'https://github.com/vowl313/NardBadges', role: 'badges' },
   { handle: 'leonevz', work: 'Elite Badges', href: 'https://github.com/leonevz/Elite-Badges', role: 'badges' },
   { handle: 'sweatycab', work: 'Nuvio Minimalist Badges', href: 'https://github.com/sweatycab/nuvio-minimalist-badges', role: 'badges' },
@@ -134,7 +134,7 @@ export function SupportersPage() {
             {ARTISTS.map((artist) => (
               <li key={`${artist.handle}-${artist.work}`}>
                 <a className="sp-artist" href={artist.href} target="_blank" rel="noopener">
-                  <Monogram name={artist.handle} />
+                  {artist.avatar ? <img className="sp-mono sp-avatar" src={artist.avatar} alt="" width="46" height="46" loading="lazy" /> : <Monogram name={artist.handle} />}
                   <span className="sp-artist-text">
                     <strong>{artist.handle}</strong>
                     <span>{t(`supporters.role.${artist.role}`)}</span>

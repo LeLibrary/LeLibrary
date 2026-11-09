@@ -202,3 +202,26 @@ test('no steps means no Nuvio calls at all', async () => {
 });
 
 export interface NuvioSettingsOneWriteTestModule {}
+
+test('FR style pushes all 171 tags to both platforms and refreshes an updated manifest', async (t) => {
+  const style = 'fr-neon';
+  const url = badgePacks.resolveBadgePackUrl(style, '', ORIGIN);
+  const filters = Array.from({ length: 171 }, (_, i) => ({ id: `tag-${i}`, name: `Tag ${i}`, groupId: 'g', pattern: `tag${i}`, imageURL: `https://img.example/${i}.png`, isEnabled: true }));
+  MANIFESTS[url] = { filters, groups: [{ id: 'g', name: 'Tags' }] };
+  t.mock.method(require('node:dns').promises, 'lookup', async () => [{ address: '203.0.113.20', family: 4 }]);
+  store = { 2: { tv: clone(FULL_BLOB), mobile: clone(FULL_BLOB) } };
+  const log = await pushDad({ nuvioBadgePack: style });
+  assert.equal(log.filter((call) => call.method === 'GET' && call.url === url).length, 1);
+  for (const platform of ['tv', 'mobile']) {
+    const imports = JSON.parse(store[2][platform].features.stream_badge_settings.stream_badge_rules.value).imports;
+    assert.equal(imports[0].sourceUrl, url);
+    assert.equal(imports[0].filters.length, 171);
+    assert.equal(imports[0].filters[170].id, 'tag-170');
+  }
+  MANIFESTS[url].filters[170].name = 'Updated tag';
+  await pushDad({ nuvioBadgePack: style });
+  for (const platform of ['tv', 'mobile']) {
+    const imports = JSON.parse(store[2][platform].features.stream_badge_settings.stream_badge_rules.value).imports;
+    assert.equal(imports[0].filters[170].name, 'Updated tag');
+  }
+});
