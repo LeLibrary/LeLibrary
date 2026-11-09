@@ -71,6 +71,7 @@ describe('quick look reference layout', () => {
     expect(html).not.toContain('qs-poster');
     expect(html.match(/class="qs-chip( |")/g)?.length ?? 0).toBe(BADGE_PACKS.filter((pack) => !pack.id.startsWith('fr-')).length + 1);
     expect(html).toContain('>FR-Badges</button>');
+    expect(html.indexOf('>LeLibrary Premium</button>')).toBeLessThan(html.indexOf('>FR-Badges</button>'));
     expect(html).toContain('aria-label="Stream display style"');
     expect(html).toMatch(/aria-checked="true" class="qs-stream is-selected"/);
     expect(html).toContain('more styles');

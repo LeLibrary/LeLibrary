@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { Fragment, useEffect, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import {
   BADGE_PACKS,
@@ -112,26 +112,27 @@ export function BadgePackButton({ pack, customUrl, onChange, shortcut = false }:
             <h3>{showFr ? 'FR-Badges' : 'Badge packs'}</h3>
             {showFr ? <p>Choose an FR-Badges style. Created by <a href="https://github.com/farizmohd70/FR-Badges" target="_blank" rel="noreferrer">farizmohd70</a>.</p> : <p>Tick one to apply it - the stream preview updates straight away. Packs are independent of stream formatting; Nuvio imports the pack once per profile.</p>}
             <div className="pack-grid">
-              {!showFr && (
-                <button type="button" className={`pack-card${pack.startsWith('fr-') ? ' active' : ''}`} onClick={() => setShowFr(true)}>
-                  <strong>FR-Badges</strong>
-                  <small>Choose from 10 styles</small>
-                  <PackPreview pack={pack.startsWith('fr-') ? pack : 'fr-glass'} customUrl="" />
-                </button>
-              )}
               {BADGE_PACKS.filter((entry) => showFr === entry.id.startsWith('fr-')).map((entry) => (
-                <button
-                  key={entry.id}
-                  type="button"
-                  className={`pack-card${entry.id === pack ? ' active' : ''}`}
-                  aria-pressed={entry.id === pack}
-                  onClick={() => pick(entry.id)}
-                >
-                  <span className="pack-check" aria-hidden="true">✓</span>
-                  <strong>{entry.name}</strong>
-                  <small>{entry.description}</small>
-                  <PackPreview pack={entry.id} customUrl={customUrl} />
-                </button>
+                <Fragment key={entry.id}>
+                  <button
+                    type="button"
+                    className={`pack-card${entry.id === pack ? ' active' : ''}`}
+                    aria-pressed={entry.id === pack}
+                    onClick={() => pick(entry.id)}
+                  >
+                    <span className="pack-check" aria-hidden="true">✓</span>
+                    <strong>{entry.name}</strong>
+                    <small>{entry.description}</small>
+                    <PackPreview pack={entry.id} customUrl={customUrl} />
+                  </button>
+                  {!showFr && entry.id === 'lelibrary-premium' && (
+                    <button type="button" className={`pack-card${pack.startsWith('fr-') ? ' active' : ''}`} onClick={() => setShowFr(true)}>
+                      <strong>FR-Badges</strong>
+                      <small>Choose from 10 styles</small>
+                      <PackPreview pack={pack.startsWith('fr-') ? pack : 'fr-glass'} customUrl="" />
+                    </button>
+                  )}
+                </Fragment>
               ))}
             </div>
             {!showFr && pack === 'custom' && (

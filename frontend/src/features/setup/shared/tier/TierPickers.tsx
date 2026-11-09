@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   FORMAT_SAMPLES,
   POSTER_PAIRS,
@@ -36,18 +36,19 @@ export function BadgePackStrip({ pack, customUrl, onChange }: {
         <PackPreview pack={pack} customUrl={customUrl} />
       </div>
       <div className="qs-chips" role="radiogroup" aria-label="Badge pack">
-        <BadgePackButton pack={pack} customUrl={customUrl} onChange={onChange} shortcut />
         {BADGE_PACKS.filter((entry) => !entry.id.startsWith('fr-')).map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            role="radio"
-            aria-checked={entry.id === pack}
-            className={`qs-chip${entry.id === pack ? ' is-selected' : ''}`}
-            onClick={() => onChange({ pack: entry.id, url: entry.id === 'custom' ? customUrl : (entry.url ?? '') })}
-          >
-            {entry.name}
-          </button>
+          <Fragment key={entry.id}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={entry.id === pack}
+              className={`qs-chip${entry.id === pack ? ' is-selected' : ''}`}
+              onClick={() => onChange({ pack: entry.id, url: entry.id === 'custom' ? customUrl : (entry.url ?? '') })}
+            >
+              {entry.name}
+            </button>
+            {entry.id === 'lelibrary-premium' && <BadgePackButton pack={pack} customUrl={customUrl} onChange={onChange} shortcut />}
+          </Fragment>
         ))}
       </div>
       {pack === 'custom' && (
