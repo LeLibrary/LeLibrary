@@ -16,7 +16,9 @@ describe('Jellyfin card', () => {
     const html = render();
     expect(html).toContain('Jellyfin');
     expect(html).toContain('https://lelibrary.github.io/LeLibrary-Jellyfin/manifest.json');
-    expect(html).toContain('/abc.def/manifest.json');
+    expect(html).toContain('/abc.def/manifest.json'); // Stremio/Nuvio still get the manifest
+    // The plugin gets the setup base URL: it appends /jellyfin/config.json itself.
+    expect(html).toContain('value="/abc.def"');
   });
 
   it('says the plugin asks for the debrid key of the user, not ours', () => {

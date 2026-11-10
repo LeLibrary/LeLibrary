@@ -212,6 +212,7 @@ async function buildIndexedCatalog({ scopeId, provider = null, type, sortBy, ski
 }
 
 export interface CatalogApi {
+  filterRows: (rows: any[], state: any, kind: 'movies' | 'series') => Promise<any[]>;
   buildIndexedCatalog: any;
   buildFromRows: any;
   assembleMetas: any;
@@ -233,4 +234,28 @@ function withoutTmdbAnime(rows) {
   });
 }
 
-module.exports = { buildIndexedCatalog, buildFromRows, assembleMetas, sortMetas, applyPosterEnhance, hashShort, rowToMeta, withoutTmdbAnime } satisfies CatalogApi;
+// Row-level content filters, shared by the Library catalog and the Jellyfin
+// plan so both surfaces hide exactly the same titles. Anime is answered by the
+// matched meta flag (no extra query); excluded categories and adult content
+// come from the genre facts table. A title whose facts have not been filled yet
+// stays visible: never guess.
+async function filterRows(rows, state, kind) {
+  let out = Array.isArray(rows) ? rows : [];
+  if (!state) return out;
+  if (state.hideAnime) out = withoutTmdbAnime(out);
+  if (state.excludeCategories.length || state.hideAdult) {
+    const genres = require('./genres.ts');
+    const contentFilters = require('../catalog/content-filters.ts');
+    const excluded = new Set();
+    if (state.excludeCategories.length) {
+      for (const id of await genres.idsMatchingRules(kind, contentFilters.libraryRules(state, kind))) excluded.add(id);
+    }
+    if (state.hideAdult) {
+      for (const id of await genres.adultTmdbIds(kind)) excluded.add(id);
+    }
+    if (excluded.size) out = out.filter((row) => !excluded.has(Number(row.tmdb_id)));
+  }
+  return out;
+}
+
+module.exports = { buildIndexedCatalog, buildFromRows, assembleMetas, sortMetas, applyPosterEnhance, hashShort, rowToMeta, withoutTmdbAnime, filterRows } satisfies CatalogApi;

@@ -824,6 +824,19 @@ async function catalogRows(scopeId, mediaType, provider = null) {
   return rows;
 }
 
+// When this scope last completed a sync. NULL means no sync has ever finished:
+// a read then must not be served as "the library is empty".
+async function scopeLastSync(scopeId) {
+  const pool = db.getPool();
+  if (!pool) return null;
+  const { rows } = await pool.query(
+    `SELECT last_success_at, last_sync_at FROM lib_scopes WHERE scope_id = $1`,
+    [scopeId]
+  );
+  if (!rows.length) return null;
+  return rows[0].last_success_at || rows[0].last_sync_at || null;
+}
+
 function buildTsQuery(query) {
   // Keep single-character tokens (e.g. "7" in "series title 7"): dropping them
   // silently moved the trailing prefix marker onto the previous word, which
@@ -1095,6 +1108,7 @@ export interface StoreApi {
   saveMatch: any;
   markMatchSkipped: any;
   catalogRows: any;
+  scopeLastSync: any;
   searchRows: any;
   tmdbItems: any;
   toTimestamp: any;
@@ -1139,6 +1153,7 @@ module.exports = {
   saveMatch,
   markMatchSkipped,
   catalogRows,
+  scopeLastSync,
   searchRows,
   tmdbItems,
   toTimestamp,

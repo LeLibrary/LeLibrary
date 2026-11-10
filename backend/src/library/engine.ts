@@ -673,22 +673,11 @@ async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip 
           return { metas: [], syncing: !!rec?.syncing, indexed: true, ready };
         }
       }
-      // Before paging, so every page stays full and in order.
-      if (hideAnime) rows = catalog.withoutTmdbAnime(rows);
-      // Excluded categories and adult content: one id lookup per request (the
-      // genre facts are shared by every library), then a row filter. A title
-      // whose facts have not been filled yet stays visible: never guess.
-      if (filterState.excludeCategories.length || filterState.hideAdult) {
-        const genres = require('./genres.ts');
-        const excluded = new Set();
-        if (filterState.excludeCategories.length) {
-          for (const id of await genres.idsMatchingRules(filterKind, contentFilters.libraryRules(filterState, filterKind))) excluded.add(id);
-        }
-        if (filterState.hideAdult) {
-          for (const id of await genres.adultTmdbIds(filterKind)) excluded.add(id);
-        }
-        if (excluded.size) rows = rows.filter((row) => !excluded.has(Number(row.tmdb_id)));
-      }
+      // Before paging, so every page stays full and in order. The same helper
+      // backs the Jellyfin plan, so both surfaces hide the same titles.
+      // `hideAnime` here already excludes the Anime catalogue itself, where
+      // hiding anime would empty the row the user asked for.
+      rows = await catalog.filterRows(rows, { ...filterState, hideAnime }, filterKind);
       // 4K / HDR rows: titles with at least one release of that quality. All
       // releases of a kept title stay, so its page and streams match My Movies.
       let rank = null;

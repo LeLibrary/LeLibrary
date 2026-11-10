@@ -188,6 +188,9 @@ export function PublishPanel({
   const platformName = platform === 'nuvio' ? 'Nuvio' : 'Stremio';
   const manifest = installUrl(origin(), installToken);
   const collections = `${origin()}/${installToken}/collections.json`;
+  // The Jellyfin plugin wants the setup base URL, not the manifest: it appends
+  // /jellyfin/config.json and /LeLibrary/play/... itself.
+  const setupUrl = manifest.replace(/\/manifest\.json$/, '');
   const stremioLink = manifest.replace(/^https?:\/\//, 'stremio://');
   const clients = useClientIntegrations(installToken);
 
@@ -413,10 +416,10 @@ export function PublishPanel({
                 </button>
               </div>
               <div className="copy-row">
-                <input readOnly value={manifest} aria-label="LeLibrary URL for the plugin" onFocus={(event) => event.target.select()} />
+                <input readOnly value={setupUrl} aria-label="LeLibrary URL for the plugin" onFocus={(event) => event.target.select()} />
                 <button
                   type="button" className="created-copy-btn" aria-label="Copy install link for Jellyfin"
-                  onClick={() => void copy(manifest, 'jellyfin-install', 'Install link copied')}
+                  onClick={() => void copy(setupUrl, 'jellyfin-install', 'Install link copied')}
                 >
                   {copied === 'jellyfin-install' ? 'Copied ✓' : 'Copy'}
                 </button>

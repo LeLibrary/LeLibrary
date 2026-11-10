@@ -14,6 +14,7 @@ function appWith(config: any, rows: any, extra: any = {}) {
   mountJellyfinRoutes(app, {
     resolveConfig: async () => config,
     catalogRows: async (_scope: string, type: string) => rows[type] || [],
+    scopeSynced: async () => new Date(),
     ...extra,
   } as any);
   return app;
@@ -86,21 +87,35 @@ test('the ETag does not change just because time passed', async () => {
   } finally { s.close(); }
 });
 
-test('content filters remove items the setup excludes', async () => {
+test('the setup content filters reach the row filter and remove items', async () => {
   const adult = {
     ...movieRow,
     source_id: '12',
     raw: { ...movieRow.raw, id: 12 },
     tmdb_id: 900,
-    match_meta: { ...movieRow.match_meta, id: 'tt900900', name: 'Adult Film', tmdbId: 900, _adult: true },
+    match_meta: { ...movieRow.match_meta, id: 'tt900900', name: 'Adult Film', tmdbId: 900 },
   };
-  const s = await server(appWith({ provider: 'torbox', torboxApiKey: 'k', hideAdultContent: true }, { movie: [movieRow, adult], series: [], anime: [] }));
+  const s = await server(appWith(
+    { provider: 'torbox', torboxApiKey: 'filter-key', hideAdultContent: true },
+    { movie: [movieRow, adult], series: [], anime: [] },
+    { filterRows: async (rows: any[]) => rows.filter((row: any) => Number(row.tmdb_id) !== 900) },
+  ));
   try {
     const res = await s.get('/abc.def/jellyfin/config.json');
     const plan = JSON.parse(res.body);
     assert.equal(plan.items.length, 1);
     assert.equal(plan.items[0].key, 'torbox:11:2');
   } finally { s.close(); }
+});
+
+test('the shared row filter hides anime by its matched flag without a database', async () => {
+  const { filterRows } = require('../src/library/catalog.ts');
+  const rows = [
+    { tmdb_id: 1, match_meta: { isJapaneseAnimation: true } },
+    { tmdb_id: 2, match_meta: { isJapaneseAnimation: false } },
+  ];
+  const kept = await filterRows(rows, { hideAnime: true, hideAdult: false, excludeCategories: [] }, 'series');
+  assert.deepEqual(kept.map((row: any) => row.tmdb_id), [2]);
 });
 
 test('an unknown token is a 400', async () => {
@@ -152,4 +167,92 @@ test('the website 404 allowlist lets /jellyfin through to the addon route', () =
   const path = require('node:path');
   const routes = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'website.ts'), 'utf8');
   assert.match(routes, /jellyfin/);
+});
+
+test('the plan only reads rows for the setup first provider', async () => {
+  const seen: string[] = [];
+  const app = express();
+  mountJellyfinRoutes(app, {
+    resolveConfig: async () => ({ provider: 'torbox,realdebrid', torboxApiKey: 'k', rdApiKey: 'r' }),
+    catalogRows: async (_scope: string, type: string, provider: string) => { seen.push(`${type}:${provider}`); return []; },
+    scopeSynced: async () => new Date(),
+  } as any);
+  const s = await server(app);
+  try {
+    const res = await s.get('/abc.def/jellyfin/config.json');
+    assert.equal(res.status, 200);
+    assert.deepEqual([...new Set(seen.map((x) => x.split(':')[1]))], ['torbox']);
+  } finally { s.close(); }
+});
+
+test('a scope that never completed a sync is a 503, not an empty plan', async () => {
+  const app = express();
+  mountJellyfinRoutes(app, {
+    resolveConfig: async () => ({ provider: 'torbox', torboxApiKey: 'k' }),
+    catalogRows: async () => [],
+    scopeSynced: async () => null,
+  } as any);
+  const s = await server(app);
+  try {
+    const res = await s.get('/abc.def/jellyfin/config.json');
+    assert.equal(res.status, 503);
+  } finally { s.close(); }
+});
+
+test('content filters are applied to rows before assembly', async () => {
+  let calledWith: any = null;
+  const app = express();
+  mountJellyfinRoutes(app, {
+    resolveConfig: async () => ({ provider: 'torbox', torboxApiKey: 'k', hideAnime: true, excludeCategories: ['horror'] }),
+    catalogRows: async () => [movieRow],
+    scopeSynced: async () => new Date(),
+    filterRows: async (rows: any[], state: any, kind: string) => { calledWith = { count: rows.length, state, kind }; return rows; },
+  } as any);
+  const s = await server(app);
+  try {
+    const res = await s.get('/abc.def/jellyfin/config.json');
+    assert.equal(res.status, 200);
+    assert.equal(calledWith.count, 1);
+    assert.equal(calledWith.state.hideAnime, true);
+    assert.deepEqual(calledWith.state.excludeCategories, ['horror']);
+  } finally { s.close(); }
+});
+
+test('a second request for the same library state reuses the built plan', async () => {
+  let reads = 0;
+  const app = express();
+  mountJellyfinRoutes(app, {
+    resolveConfig: async () => ({ provider: 'torbox', torboxApiKey: 'cache-key-1' }),
+    catalogRows: async () => { reads += 1; return [movieRow]; },
+    scopeSynced: async () => new Date(),
+    fingerprint: () => 'fp-1',
+  } as any);
+  const s = await server(app);
+  try {
+    const first = await s.get('/abc.def/jellyfin/config.json');
+    const second = await s.get('/abc.def/jellyfin/config.json');
+    assert.equal(first.status, 200);
+    assert.equal(second.status, 200);
+    assert.equal(first.headers.etag, second.headers.etag);
+    assert.equal(reads, 3); // movie + series + anime, once
+  } finally { s.close(); }
+});
+
+test('a changed library fingerprint rebuilds the plan', async () => {
+  let reads = 0;
+  let fp = 'fp-1';
+  const app = express();
+  mountJellyfinRoutes(app, {
+    resolveConfig: async () => ({ provider: 'torbox', torboxApiKey: 'cache-key-2' }),
+    catalogRows: async () => { reads += 1; return [movieRow]; },
+    scopeSynced: async () => new Date(),
+    fingerprint: () => fp,
+  } as any);
+  const s = await server(app);
+  try {
+    await s.get('/abc.def/jellyfin/config.json');
+    fp = 'fp-2';
+    await s.get('/abc.def/jellyfin/config.json');
+    assert.equal(reads, 6);
+  } finally { s.close(); }
 });

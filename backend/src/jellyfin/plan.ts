@@ -173,6 +173,10 @@ export interface PlanInput {
   baseUrl: string;
   // Matched metas from library/catalog.ts assembleMetas.
   metas: any[];
+  // Present when the setup has an ERDB key. Posters then point at our own proxy
+  // ({baseUrl}/erdb/poster/...), never at easyratingsdb.com, because that URL
+  // carries the user's ERDB key.
+  erdbToken?: string;
   collections?: PlanCollection[];
   now?: number;
 }
@@ -256,6 +260,18 @@ function yearOrNull(value: unknown): number | null {
   return Number.isInteger(year) && year > 1900 && year < 2200 ? year : null;
 }
 
+// The library metas carry no `year`: the parser/store keeps `releaseInfo`
+// ("1999", "2015-2022") and sometimes `released` ("1999-03-31"). Reading only
+// `year` made every folder "Title/" and collapsed same-name titles onto one
+// path, silently dropping one of each pair.
+function metaYear(meta: any): number | null {
+  const direct = yearOrNull(meta?.year);
+  if (direct) return direct;
+  const fromRelease = yearOrNull(String(meta?.releaseInfo || '').slice(0, 4));
+  if (fromRelease) return fromRelease;
+  return yearOrNull(String(meta?.released || '').slice(0, 4));
+}
+
 function tmdbOrNull(value: unknown): number | null {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
@@ -288,13 +304,21 @@ function buildPlan(input: PlanInput): { plan: JellyfinPlan; skipped: number } {
     const entries = Array.isArray(meta.torboxItems) ? meta.torboxItems : [];
     const isMovie = meta.catalogType === 'movie' || meta.catalogType === 'movies';
     const title = textOrNull(meta.name) || 'Untitled';
-    const year = yearOrNull(meta.year);
-    const poster = absolutizeArt(meta.poster, baseUrl);
+    const year = metaYear(meta);
+    const tmdbId = tmdbOrNull(meta.tmdbId);
+    // ERDB setups get our own proxy route: it carries the setup token (the read
+    // capability) and never the ERDB key.
+    const poster = input.erdbToken && tmdbId
+      ? `${baseUrl.replace(/\/+$/, '')}/erdb/poster/tmdb:${isMovie ? 'movie' : 'tv'}:${tmdbId}`
+      : absolutizeArt(meta.poster, baseUrl);
     const backdrop = absolutizeArt(meta.backdrop || meta.background, baseUrl);
 
     for (const entry of entries) {
       const item = entry?.item;
       if (!item) { skipped += 1; continue; }
+      // TorBox numbers torrents, usenet and web downloads separately, so their
+      // ids are not interchangeable: v0.1 plans torrents only.
+      if (provider === 'torbox' && item.source && item.source !== 'torrent') { skipped += 1; continue; }
       const itemId = itemIdOf(item);
       if (itemId == null) { skipped += 1; continue; }
 
@@ -398,7 +422,7 @@ function buildPlan(input: PlanInput): { plan: JellyfinPlan; skipped: number } {
       schemaVersion: 1,
       generatedAt: new Date(now).toISOString(),
       provider,
-      libraries: LIBRARIES,
+      libraries: LIBRARIES.map((library) => ({ ...library })),
       items,
       collections: Array.isArray(input.collections) ? input.collections : [],
     },

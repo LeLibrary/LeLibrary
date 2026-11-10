@@ -216,3 +216,43 @@ test('a multi-episode file in a pack stays one item', () => {
   assert.equal(plan.items.length, 1);
   assert.equal(plan.items[0].path, 'Show (2020)/Season 02/Show S02E04-E05.strm');
 });
+
+// ── Real meta shape: no `year` field, only releaseInfo ──
+test('year comes from releaseInfo when the meta has no year field', () => {
+  const meta = movieMeta([{ id: 2, name: 'The.Matrix.2160p.DV.mkv', size: 18e9 }]);
+  delete (meta as any).year;
+  (meta as any).releaseInfo = '1999-03-31';
+  const { plan } = buildPlan({ provider: 'torbox', baseUrl: 'https://l.uk/x', metas: [meta] });
+  assert.equal(plan.items[0].year, 1999);
+  assert.equal(plan.items[0].path, 'The Matrix (1999)/The Matrix (1999) - 2160p DV.strm');
+});
+
+test('a series year comes from a releaseInfo range', () => {
+  const meta = {
+    id: 'tt3230854', tmdbId: 63639, name: 'The Expanse', releaseInfo: '2015-2022',
+    catalogType: 'series', poster: 'https://img/p.jpg',
+    torboxItems: [{ item: { source: 'torrent', id: 77, name: 'p', files: [{ id: 2, name: 'The.Expanse.S01E03.mkv', size: 3e9 }] }, season: 1, episode: 3 }],
+  };
+  const { plan } = buildPlan({ provider: 'torbox', baseUrl: 'https://l.uk/x', metas: [meta] });
+  assert.equal(plan.items[0].seriesYear, 2015);
+  assert.equal(plan.items[0].path, 'The Expanse (2015)/Season 01/The Expanse S01E03.strm');
+});
+
+// ── TorBox usenet/webdl use their own id namespaces, so v0.1 skips them ──
+test('torbox usenet and web downloads are skipped, not keyed as torrents', () => {
+  const item = { source: 'usenet', id: 55, name: 'Film 2024', files: [{ id: 1, name: 'Film.2024.1080p.mkv', size: 8e9 }] };
+  const meta = { ...movieMeta([{ id: 1, name: 'x.mkv', size: 1e9 }]), torboxItems: [{ item, season: null, episode: null }] };
+  const { plan, skipped } = buildPlan({ provider: 'torbox', baseUrl: 'https://l.uk/x', metas: [meta] });
+  assert.equal(plan.items.length, 0);
+  assert.equal(skipped, 1);
+});
+
+// ── Posters: our own ERDB proxy (setup token only), never the ERDB key ──
+test('an erdb setup gets proxied posters and the erdb key never appears', () => {
+  const { plan } = buildPlan({
+    provider: 'torbox', baseUrl: 'https://l.uk/abc.def', erdbToken: 'ERDBSECRET',
+    metas: [movieMeta([{ id: 2, name: 'The.Matrix.2160p.mkv', size: 18e9 }])],
+  });
+  assert.equal(plan.items[0].poster, 'https://l.uk/abc.def/erdb/poster/tmdb:movie:603');
+  assert.equal(JSON.stringify(plan).includes('ERDBSECRET'), false);
+});
