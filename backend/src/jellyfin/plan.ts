@@ -321,35 +321,72 @@ function buildPlan(input: PlanInput): { plan: JellyfinPlan; skipped: number } {
 
       const season = entry.season != null ? Number(entry.season) : null;
       const episode = entry.episode != null ? Number(entry.episode) : null;
-      if (season == null || episode == null || !Number.isFinite(season) || !Number.isFinite(episode)) {
-        // Absolute-numbered releases have no season/episode to name a file with.
-        // Skipped and counted, never guessed.
-        skipped += 1;
+      const still = absolutizeArt(meta.still, baseUrl);
+
+      const pushEpisode = (fileSeason: number, fileEpisode: number, end: number, fileId: unknown, path: string, episodeTitle: string | null): void => {
+        keep(path, itemId, fileId, {
+          key: itemKey(provider, itemId, fileId),
+          library: 'shows',
+          kind: 'episode',
+          seriesTitle: title,
+          seriesYear: year,
+          tmdbId: tmdbOrNull(meta.tmdbId),
+          tvdbId: tmdbOrNull(meta.tvdbId),
+          season: fileSeason,
+          episode: fileEpisode,
+          episodeEnd: end > fileEpisode ? end : null,
+          episodeTitle,
+          path,
+          poster,
+          still,
+        });
+      };
+
+      if (season != null && episode != null && Number.isFinite(season) && Number.isFinite(episode)) {
+        const chosen = episodeFileFor(playableFiles(item), season, episode, episode);
+        if (!chosen || chosen.id == null) { skipped += 1; continue; }
+        const info = builder.episodeFileInfo(chosen) || {};
+        const endFromMeta = entry.episodeEnd != null ? Number(entry.episodeEnd) : 0;
+        const endFromFile = info.episodeEnd != null ? Number(info.episodeEnd) : 0;
+        const episodeEnd = Math.max(endFromMeta, endFromFile, episode);
+        pushEpisode(
+          season,
+          episode,
+          episodeEnd,
+          chosen.id,
+          episodePath({ seriesTitle: title, seriesYear: year, season, episode, episodeEnd: episodeEnd > episode ? episodeEnd : null }),
+          textOrNull(entry.episodeTitle) || textOrNull(meta.episodeTitle)
+        );
         continue;
       }
-      const chosen = episodeFileFor(builder.embeddedItemFiles(item).filter((file) => isVideoFile(fileNameOf(file))), season, episode, episode);
-      if (!chosen || chosen.id == null) { skipped += 1; continue; }
-      const info = builder.episodeFileInfo(chosen) || {};
-      const endFromMeta = entry.episodeEnd != null ? Number(entry.episodeEnd) : 0;
-      const endFromFile = info.episodeEnd != null ? Number(info.episodeEnd) : 0;
-      const episodeEnd = Math.max(endFromMeta, endFromFile, episode);
-      const path = episodePath({ seriesTitle: title, seriesYear: year, season, episode, episodeEnd: episodeEnd > episode ? episodeEnd : null });
-      keep(path, itemId, chosen.id, {
-        key: itemKey(provider, itemId, chosen.id),
-        library: 'shows',
-        kind: 'episode',
-        seriesTitle: title,
-        seriesYear: year,
-        tmdbId: tmdbOrNull(meta.tmdbId),
-        tvdbId: tmdbOrNull(meta.tvdbId),
-        season,
-        episode,
-        episodeEnd: episodeEnd > episode ? episodeEnd : null,
-        episodeTitle: textOrNull(entry.episodeTitle) || textOrNull(meta.episodeTitle),
-        path,
-        poster,
-        still: absolutizeArt(meta.still, baseUrl),
-      });
+
+      // A whole-season pack (season known, episode null) or a release with no
+      // parsed numbering at all: the files name their own episodes, which is
+      // exactly what a Jellyfin library needs. One item per file; a file whose
+      // season disagrees with the pack's season is not this pack's and is
+      // ignored. Nothing parseable means nothing is emitted.
+      let emitted = 0;
+      for (const file of playableFiles(item)) {
+        if (file.id == null) continue;
+        const info = builder.episodeFileInfo(file);
+        if (!info || info.episode == null || info.season == null) continue;
+        const fileSeason = Number(info.season);
+        if (!Number.isFinite(fileSeason)) continue;
+        if (season != null && fileSeason !== season) continue;
+        const fileEpisode = Number(info.episode);
+        if (!Number.isFinite(fileEpisode)) continue;
+        const end = info.episodeEnd != null ? Number(info.episodeEnd) : fileEpisode;
+        const path = episodePath({
+          seriesTitle: title,
+          seriesYear: year,
+          season: fileSeason,
+          episode: fileEpisode,
+          episodeEnd: end > fileEpisode ? end : null,
+        });
+        pushEpisode(fileSeason, fileEpisode, end, file.id, path, null);
+        emitted += 1;
+      }
+      if (!emitted) skipped += 1;
     }
   }
 

@@ -143,3 +143,76 @@ test('the plan carries no key material', () => {
   assert.equal(plan.schemaVersion, 1);
   assert.equal(plan.provider, 'torbox');
 });
+
+// ── Season packs: a whole-season download must become per-episode items ──
+const packMeta = (entry: any, files: any[]) => ({
+  id: 'tt222', tmdbId: 2222, name: 'Show', year: 2020, catalogType: 'series',
+  poster: 'https://img/p.jpg',
+  torboxItems: [{ item: { source: 'torrent', id: 90, name: 'Show S02', files }, ...entry }],
+});
+
+test('a season pack expands to one item per episode file', () => {
+  const { plan, skipped } = buildPlan({
+    provider: 'torbox', baseUrl: 'https://l.uk/x',
+    metas: [packMeta({ season: 2, episode: null }, [
+      { id: 1, name: 'Show.S02E01.1080p.mkv', size: 2e9 },
+      { id: 2, name: 'Show.S02E02.1080p.mkv', size: 2e9 },
+      { id: 3, name: 'Show.S02E03.1080p.mkv', size: 2e9 },
+    ])],
+  });
+  assert.equal(skipped, 0);
+  assert.deepEqual(plan.items.map((i: any) => i.path), [
+    'Show (2020)/Season 02/Show S02E01.strm',
+    'Show (2020)/Season 02/Show S02E02.strm',
+    'Show (2020)/Season 02/Show S02E03.strm',
+  ]);
+  assert.deepEqual(plan.items.map((i: any) => i.key), ['torbox:90:1', 'torbox:90:2', 'torbox:90:3']);
+});
+
+test('a pack with no season at all still expands from the file names', () => {
+  const { plan, skipped } = buildPlan({
+    provider: 'torbox', baseUrl: 'https://l.uk/x',
+    metas: [packMeta({ season: null, episode: null }, [
+      { id: 7, name: 'Show.S01E05.mkv', size: 2e9 },
+    ])],
+  });
+  assert.equal(skipped, 0);
+  assert.equal(plan.items[0].path, 'Show (2020)/Season 01/Show S01E05.strm');
+  assert.equal(plan.items[0].season, 1);
+  assert.equal(plan.items[0].episode, 5);
+});
+
+test('a season pack ignores files from another season', () => {
+  const { plan, skipped } = buildPlan({
+    provider: 'torbox', baseUrl: 'https://l.uk/x',
+    metas: [packMeta({ season: 2, episode: null }, [
+      { id: 1, name: 'Show.S01E09.mkv', size: 2e9 },
+      { id: 2, name: 'Show.S02E04.mkv', size: 2e9 },
+    ])],
+  });
+  assert.equal(skipped, 0);
+  assert.equal(plan.items.length, 1);
+  assert.equal(plan.items[0].path, 'Show (2020)/Season 02/Show S02E04.strm');
+});
+
+test('a pack with no parseable episode file is skipped, not guessed', () => {
+  const { plan, skipped } = buildPlan({
+    provider: 'torbox', baseUrl: 'https://l.uk/x',
+    metas: [packMeta({ season: 2, episode: null }, [
+      { id: 1, name: 'Show.Behind.The.Scenes.mkv', size: 2e9 },
+    ])],
+  });
+  assert.equal(plan.items.length, 0);
+  assert.equal(skipped, 1);
+});
+
+test('a multi-episode file in a pack stays one item', () => {
+  const { plan } = buildPlan({
+    provider: 'torbox', baseUrl: 'https://l.uk/x',
+    metas: [packMeta({ season: 2, episode: null }, [
+      { id: 4, name: 'Show.S02E04-E05.mkv', size: 2e9 },
+    ])],
+  });
+  assert.equal(plan.items.length, 1);
+  assert.equal(plan.items[0].path, 'Show (2020)/Season 02/Show S02E04-E05.strm');
+});

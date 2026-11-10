@@ -143,3 +143,13 @@ test('a missing library pool is a 503 when the route reads the real store', asyn
     assert.equal(res.status, 503);
   } finally { s.close(); }
 });
+
+test('the website 404 allowlist lets /jellyfin through to the addon route', () => {
+  // The website router is mounted before the addon routes and ends in a 404
+  // page; it only lets known addon paths fall through. A new addon surface must
+  // be listed there or it 404s in the real app while its own tests pass.
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const routes = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'website.ts'), 'utf8');
+  assert.match(routes, /jellyfin/);
+});
