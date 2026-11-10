@@ -37,6 +37,11 @@ export const routes: RouteObject[] = [
         lazy: withLocale(['site'], async () => ({ Component: (await import('@/features/site/GuidePage')).GuidePage })),
       },
       {
+        path: 'jellyfin',
+        hydrateFallbackElement: routeHydrateFallback,
+        lazy: withLocale(['site'], hostedPageLazy('JellyfinPage', 'JellyfinPage')),
+      },
+      {
         path: 'privacy',
         hydrateFallbackElement: routeHydrateFallback,
         lazy: withLocale(['site'], hostedPageLazy('PrivacyPage', 'PrivacyPage')),

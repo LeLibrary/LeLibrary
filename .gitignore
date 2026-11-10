@@ -30,6 +30,8 @@ frontend/src/features/site/home.css
 frontend/src/features/site/PrivacyPage.tsx
 frontend/src/features/site/privacy.css
 frontend/src/features/site/StatusPage.tsx
+frontend/src/features/site/JellyfinPage.tsx
+frontend/src/features/site/jellyfin.css
 frontend/src/features/site/status.css
 # Guide walkthrough videos (built by promo/guide).
 frontend/public/guide/videos/

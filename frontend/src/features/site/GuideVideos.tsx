@@ -96,8 +96,8 @@ export interface OverviewVideo {
   captions?: string;
 }
 
-export function parseOverviewVideo(data: unknown): OverviewVideo | null {
-  const raw = data && typeof data === 'object' ? (data as { overview?: unknown }).overview : null;
+export function parseOverviewVideo(data: unknown, key: 'overview' | 'jellyfin' = 'overview'): OverviewVideo | null {
+  const raw = data && typeof data === 'object' ? (data as Record<string, unknown>)[key] : null;
   if (!raw || typeof raw !== 'object') return null;
   const item = raw as Record<string, unknown>;
   const src = item['src'];

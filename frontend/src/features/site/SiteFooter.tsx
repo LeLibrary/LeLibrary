@@ -41,6 +41,7 @@ export function SiteFooter() {
             <li><a href="/">{t('footer.home')}</a></li>
             <li><a href="/configure">{t('footer.setups')}</a></li>
             <li><a href="/guide">{t('navigation.guide')}</a></li>
+            <li><a href="/jellyfin">Jellyfin</a></li>
             {features?.releases === true && <li><a href="/releases">{t('navigation.releases')}</a></li>}
             <li><a href="/status">{t('navigation.status')}</a></li>
           </ul>

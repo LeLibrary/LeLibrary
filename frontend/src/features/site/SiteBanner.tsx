@@ -32,6 +32,7 @@ export function SiteBanner() {
       <nav className="banner-links" aria-label={t('navigation.primary')}>
         <NavLink to="/configure">{t('navigation.configure')}</NavLink>
         <NavLink to="/guide">{t('navigation.guide')}</NavLink>
+        <NavLink to="/jellyfin">Jellyfin</NavLink>
         {releasesEnabled && <NavLink to="/releases">{t('navigation.releases')}</NavLink>}
         <NavLink to="/status">{t('navigation.status')}</NavLink>
         <NavLink to="/supporters">{t('navigation.supporters')}</NavLink>
@@ -67,6 +68,7 @@ export function SiteBanner() {
         <nav className="banner-menu" id="banner-mobile-menu" aria-label={t('navigation.mobile')}>
           <NavLink to="/configure" onClick={() => setOpen(false)}>{t('navigation.configure')}</NavLink>
           <NavLink to="/guide" onClick={() => setOpen(false)}>{t('navigation.guide')}</NavLink>
+          <NavLink to="/jellyfin" onClick={() => setOpen(false)}>Jellyfin</NavLink>
           {releasesEnabled && <NavLink to="/releases" onClick={() => setOpen(false)}>{t('navigation.releases')}</NavLink>}
           <NavLink to="/status" onClick={() => setOpen(false)}>{t('navigation.status')}</NavLink>
           <NavLink to="/supporters" onClick={() => setOpen(false)}>{t('navigation.supporters')}</NavLink>

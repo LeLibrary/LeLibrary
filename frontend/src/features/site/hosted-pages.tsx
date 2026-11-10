@@ -14,6 +14,7 @@ const loaders = import.meta.glob<SitePageModule>([
   './HomePage.tsx',
   './PrivacyPage.tsx',
   './StatusPage.tsx',
+  './JellyfinPage.tsx',
 ]);
 
 function configureRedirect(): ComponentType {

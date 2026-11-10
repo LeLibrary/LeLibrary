@@ -572,6 +572,13 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
     return res.redirect('/configure');
   });
 
+  // LeLibrary for Jellyfin: the React app. Without a frontend build, send
+  // people to the setup picker rather than serving a blank page.
+  router.get('/jellyfin', (req: Request, res: Response) => {
+    if (serveShell(res)) return;
+    return res.redirect('/configure');
+  });
+
   // Provider status page: the React app. Without a frontend build, the
   // private status.html when present, else the configure redirect as before.
   router.get('/status', (req: Request, res: Response) => {
