@@ -123,21 +123,21 @@ jobs:
       - name: Build release notes
         run: node .github/release/notes.mjs notes "$GITHUB_REF_NAME" --digest "${{ needs.image.outputs.digest }}" > release-notes.md
 
-      # Published as the LeLibrary GitHub Actions app, so the release shows
-      # lelibrary-github-actions[bot] instead of github-actions[bot].
-      - name: Get the release app token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ vars.LELIBRARY_APP_ID }}
-          private-key: ${{ secrets.LELIBRARY_APP_PRIVATE_KEY }}
-          permission-contents: write
-
+      # Plain GITHUB_TOKEN on purpose: no GitHub App, no extra secret, and the
+      # release is published as github-actions[bot]. Workflows do not run for
+      # events created with GITHUB_TOKEN, which is why the Discord call below
+      # uses workflow_call instead of relying on the `release` event.
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
-          token: ${{ steps.app-token.outputs.token }}
           name: LeLibrary ${{ github.ref_name }}
           body_path: release-notes.md
           prerelease: ${{ contains(github.ref_name, '-') }}
           make_latest: ${{ !contains(github.ref_name, '-') }}
+
+  notify:
+    needs: release
+    uses: ./.github/workflows/discord-notifications.yml
+    with:
+      release_tag: ${{ github.ref_name }}
+    secrets: inherit
