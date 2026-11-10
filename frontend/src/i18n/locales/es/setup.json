@@ -1910,6 +1910,15 @@
     "FR-Badges": "FR-Badges",
     "farizmohd70": "farizmohd70",
     "Sample badges": "Ejemplos de insignias",
-    "{{value}} sample badges": "Ejemplos de insignias de {{value}}"
+    "{{value}} sample badges": "Ejemplos de insignias de {{value}}",
+    "Jellyfin": "Jellyfin",
+    "Turn this library into Jellyfin media folders.": "Convierte esta biblioteca en carpetas de Jellyfin.",
+    "Add the plugin repository in Jellyfin, install LeLibrary, then paste this install link and your own debrid key in the plugin settings. Nothing is downloaded: the plugin writes playable links and Jellyfin streams straight from your debrid account.": "Añade el repositorio del plugin en Jellyfin, instala LeLibrary y pega este enlace de instalación y tu propia clave de debrid en los ajustes del plugin. No se descarga nada: el plugin crea enlaces reproducibles y Jellyfin reproduce directamente desde tu cuenta de debrid.",
+    "Plugin repository URL": "URL del repositorio del plugin",
+    "Copy plugin repository URL": "Copiar URL del repositorio del plugin",
+    "LeLibrary URL for the plugin": "URL de LeLibrary para el plugin",
+    "Copy install link for Jellyfin": "Copiar enlace de instalación para Jellyfin",
+    "Repository URL copied": "URL del repositorio copiada",
+    "Install link copied": "Enlace de instalación copiado"
   }
 }
