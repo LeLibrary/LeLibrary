@@ -569,7 +569,7 @@ export function GuidePage() {
               filename. A screenshot with keys and private links hidden is fine. Ask in the{' '}
               <a href="https://discord.gg/E3XbsmuQ9E" target="_blank" rel="noopener noreferrer">LeLibrary Discord</a>,{' '}
               visit <a href="https://www.reddit.com/r/LeLibrary/" target="_blank" rel="noopener noreferrer">r/LeLibrary</a>,{' '}
-              or open a <a href="https://github.com/leleasley/LeLibrary/issues" target="_blank" rel="noopener noreferrer">GitHub issue</a>.
+              or open a <a href="https://github.com/LeLibrary/LeLibrary/issues" target="_blank" rel="noopener noreferrer">GitHub issue</a>.
             </p>
             <p>
               Read the <Link to="/privacy">privacy policy</Link> for the full list of what a setup stores and how

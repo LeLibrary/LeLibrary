@@ -21,7 +21,7 @@ const MAX_STREAMS = 200;
 const MAX_BYTES = 4 * 1024 * 1024;
 const COOLDOWN_MS = 5 * 60 * 1000;
 const FAIL_THRESHOLD = 3;
-const UA = 'LeLibrary/2.0 (+https://github.com/leleasley/LeLibrary)';
+const UA = 'LeLibrary/2.0 (+https://github.com/LeLibrary/LeLibrary)';
 
 // Irreversible short id for a connector URL. Used in logs, cache keys and locks
 // so the URL itself is never stored or emitted.

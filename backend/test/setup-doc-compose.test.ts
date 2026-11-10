@@ -19,7 +19,7 @@ test('the compose file in SETUP.md matches compose.example.yml', () => {
 
 test('the example uses the published image and keeps the database private', () => {
   const example = fs.readFileSync(path.join(root, 'compose.example.yml'), 'utf8');
-  assert.match(example, /image: ghcr\.io\/leleasley\/lelibrary:latest/);
+  assert.match(example, /image: ghcr\.io\/lelibrary\/lelibrary:latest/);
   const postgres = example.slice(example.indexOf('  postgres:'), example.indexOf('  redis:'));
   assert.doesNotMatch(postgres, /^\s+ports:/m);
 });

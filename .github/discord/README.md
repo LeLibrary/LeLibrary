@@ -58,6 +58,6 @@ Local checks (no network, no secret):
 
 ```
 node --test .github/discord/notify.test.mjs
-DISCORD_DRY_RUN=1 NOTIFY_MODE=push GITHUB_REPOSITORY=leleasley/LeLibrary \
+DISCORD_DRY_RUN=1 NOTIFY_MODE=push GITHUB_REPOSITORY=LeLibrary/LeLibrary \
   GITHUB_EVENT_PATH=path/to/push-event.json node .github/discord/notify.mjs
 ```

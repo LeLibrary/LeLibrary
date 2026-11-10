@@ -290,7 +290,7 @@ async function fetchAddonStreams(addonId: any, config: any, type: any, ttId: any
     const responses = await Promise.all(manifestUrls.map((manifestUrl: any) => {
       const streamUrl = manifestUrl.replace(/\/manifest\.json$/, '') + `/stream/${type}/${ttId}.json`;
       const headers = {
-        'User-Agent': 'LeLibrary/2.0 (+https://github.com/leleasley/LeLibrary)',
+        'User-Agent': 'LeLibrary/2.0 (+https://github.com/LeLibrary/LeLibrary)',
         Accept: 'application/json',
         ...(typeof addon.buildHeaders === 'function' ? addon.buildHeaders(config) : {}),
       };
@@ -325,7 +325,7 @@ async function fetchKnabenStreams(config: any, type: any, title: any, year: any,
       search_type: 'score', search_field: 'title', query,
       order_by: 'seeders', order_direction: 'desc', size: 30,
       hide_unsafe: true, hide_xxx: true,
-    }, { timeout: 5000, headers: { 'User-Agent': 'LeLibrary/2.0 (+https://github.com/leleasley/LeLibrary)', Accept: 'application/json' } });
+    }, { timeout: 5000, headers: { 'User-Agent': 'LeLibrary/2.0 (+https://github.com/LeLibrary/LeLibrary)', Accept: 'application/json' } });
     const hits = Array.isArray(res.data?.hits) ? res.data.hits : [];
     const providers = require('../providers/index.ts').activeProviders(config);
     const origin = String(requestOrigin).replace(/\/+$/, '');

@@ -46,7 +46,7 @@ test('trim keeps only the newest section and points at GitHub Releases', () => {
   const trimmed = trimChangelog(CHANGELOG);
   assert.deepEqual(parseChangelog(trimmed).map((s) => s.version), ['1.2.0']);
   assert.match(trimmed, /^# Changelog\n/);
-  assert.match(trimmed, /github\.com\/leleasley\/LeLibrary\/releases/);
+  assert.match(trimmed, /github\.com\/LeLibrary\/LeLibrary\/releases/);
   assert.ok(!trimmed.includes('Fixed a thing'));
   assert.equal(trimChangelog(trimmed), trimmed, 'trimming twice changes nothing');
 });
@@ -82,7 +82,7 @@ test('notes drop the header and add install + compare footer', () => {
   const [section] = parseChangelog(CHANGELOG);
   const notes = renderNotes({ section, tag: 'v1.2.0', digest: 'sha256:abc', previous: 'v1.1.0' });
   assert.ok(!notes.includes('## [1.2.0]'));
-  assert.match(notes, /docker pull ghcr\.io\/leleasley\/lelibrary:v1\.2\.0/);
+  assert.match(notes, /docker pull ghcr\.io\/lelibrary\/lelibrary:v1\.2\.0/);
   assert.match(notes, /sha256:abc/);
   assert.match(notes, /compare\/v1\.1\.0\.\.\.v1\.2\.0/);
   assert.ok(!notes.includes('Fixed a thing'));

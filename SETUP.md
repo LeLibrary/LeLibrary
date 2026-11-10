@@ -302,7 +302,7 @@ by mistake, make a new one:
 ## Self-hosted setup
 
 You need Docker with the Compose plugin. LeLibrary runs from the published
-image (`ghcr.io/leleasley/lelibrary`); you never build anything.
+image (`ghcr.io/lelibrary/lelibrary`); you never build anything.
 
 ### 1. Make a folder and a `.env`
 
@@ -332,7 +332,7 @@ Save this as `compose.yml` next to `.env`. It is the same file as
 ```yaml
 services:
   lelibrary:
-    image: ghcr.io/leleasley/lelibrary:latest
+    image: ghcr.io/lelibrary/lelibrary:latest
     container_name: lelibrary
     restart: unless-stopped
     # Secrets and any extra option from .env.example live in .env next to
@@ -510,7 +510,7 @@ read other databases or run commands on the server.
    ```
 
 3. Download
-   [`selfhost/postgres-app-role.sql`](https://github.com/leleasley/LeLibrary/blob/main/selfhost/postgres-app-role.sql)
+   [`selfhost/postgres-app-role.sql`](https://github.com/LeLibrary/LeLibrary/blob/main/selfhost/postgres-app-role.sql)
    next to your `compose.yml` and run it once. It creates the login
    `lelibrary_app` and hands it the LeLibrary database and tables. It is safe to
    run again and deletes nothing.

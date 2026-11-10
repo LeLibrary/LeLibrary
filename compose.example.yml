@@ -1,6 +1,6 @@
 services:
   lelibrary:
-    image: ghcr.io/leleasley/lelibrary:latest
+    image: ghcr.io/lelibrary/lelibrary:latest
     container_name: lelibrary
     restart: unless-stopped
     # Secrets and any extra option from .env.example live in .env next to

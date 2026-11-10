@@ -278,7 +278,7 @@ export async function deliver(webhookUrl, payload, { fetchImpl = fetch, log = co
     try {
       response = await fetchImpl(webhookUrl, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'user-agent': 'LeLibrary-Discord-Notify (github.com/leleasley/LeLibrary)' },
+        headers: { 'content-type': 'application/json', 'user-agent': 'LeLibrary-Discord-Notify (github.com/LeLibrary/LeLibrary)' },
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });

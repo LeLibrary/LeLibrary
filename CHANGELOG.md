@@ -1,6 +1,6 @@
 # Changelog
 
-Notes for the current version. Every earlier version is on [GitHub Releases](https://github.com/leleasley/LeLibrary/releases).
+Notes for the current version. Every earlier version is on [GitHub Releases](https://github.com/LeLibrary/LeLibrary/releases).
 
 ## [6.0.0]
 

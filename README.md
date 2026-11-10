@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/leleasley/LeLibrary/releases"><img src="https://img.shields.io/github/v/release/leleasley/LeLibrary?style=for-the-badge&amp;label=release&amp;color=E8A12C" alt="Latest release"></a>
+  <a href="https://github.com/LeLibrary/LeLibrary/releases"><img src="https://img.shields.io/github/v/release/LeLibrary/LeLibrary?style=for-the-badge&amp;label=release&amp;color=E8A12C" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-E8A12C?style=for-the-badge" alt="License: AGPL-3.0"></a>
   <a href="https://discord.gg/E3XbsmuQ9E"><img src="https://img.shields.io/badge/Discord-join%20the%20community-5865F2?style=for-the-badge&amp;logo=discord&amp;logoColor=white" alt="Join the LeLibrary Discord"></a>
   <a href="https://www.reddit.com/r/LeLibrary/"><img src="https://img.shields.io/badge/Reddit-r%2FLeLibrary-FF4500?style=for-the-badge&amp;logo=reddit&amp;logoColor=white" alt="Visit r/LeLibrary on Reddit"></a>
@@ -87,9 +87,9 @@ comments:
 
 ```bash
 mkdir lelibrary && cd lelibrary
-curl -fsSLO https://raw.githubusercontent.com/leleasley/LeLibrary/main/compose.example.yml
+curl -fsSLO https://raw.githubusercontent.com/LeLibrary/LeLibrary/main/compose.example.yml
 mv compose.example.yml compose.yml
-curl -fsSLO https://raw.githubusercontent.com/leleasley/LeLibrary/main/.env.example
+curl -fsSLO https://raw.githubusercontent.com/LeLibrary/LeLibrary/main/.env.example
 mv .env.example .env
 chmod 600 .env
 ```
@@ -119,7 +119,7 @@ exact version tag. To pin or roll back, change the tag directly on the `image:`
 line in `compose.yml`, for example:
 
 ```yaml
-image: ghcr.io/leleasley/lelibrary:v5.5.0
+image: ghcr.io/lelibrary/lelibrary:v5.5.0
 ```
 
 Then run `docker compose pull && docker compose up -d`. Keep the generated
@@ -179,9 +179,9 @@ the GitHub CLI:
 
 ```bash
 gh attestation verify \
-  oci://ghcr.io/leleasley/lelibrary:vX.Y.Z \
-  --repo leleasley/LeLibrary \
-  --signer-workflow leleasley/LeLibrary/.github/workflows/release.yml
+  oci://ghcr.io/lelibrary/lelibrary:vX.Y.Z \
+  --repo LeLibrary/LeLibrary \
+  --signer-workflow LeLibrary/LeLibrary/.github/workflows/release.yml
 ```
 
 Replace `vX.Y.Z` with the exact release tag, or preferably pin the image by its

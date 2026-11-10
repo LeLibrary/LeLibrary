@@ -50,7 +50,7 @@ describe('site pages', () => {
     expect(html).toContain('href="/guide"');
     expect(html).toContain('href="/status"');
     expect(html).toContain('href="/privacy"');
-    expect(html).toContain('github.com/leleasley/LeLibrary');
+    expect(html).toContain('github.com/LeLibrary/LeLibrary');
     expect(html).toContain('banner-pill');
   });
 

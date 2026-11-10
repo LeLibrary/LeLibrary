@@ -10,7 +10,7 @@ import {
   deliver, embedLength, escapeMarkdown, notesForDiscord, run, truncateNotes,
 } from './notify.mjs';
 
-const CONTEXT = { server: 'https://github.com', repository: 'leleasley/LeLibrary' };
+const CONTEXT = { server: 'https://github.com', repository: 'LeLibrary/LeLibrary' };
 const FAKE_HOOK = 'https://discord.com/api/webhooks/123456789/fake-token_for-tests';
 const sha = (n) => String(n).repeat(40).slice(0, 40);
 
@@ -37,8 +37,8 @@ function release(overrides = {}) {
   return {
     tag_name: 'v5.5.0',
     name: 'LeLibrary v5.5.0',
-    html_url: 'https://github.com/leleasley/LeLibrary/releases/tag/v5.5.0',
-    body: '### New things\n\n- One\n- Two\n\n```\ndocker pull ghcr.io/leleasley/lelibrary:v5.5.0\n```',
+    html_url: 'https://github.com/LeLibrary/LeLibrary/releases/tag/v5.5.0',
+    body: '### New things\n\n- One\n- Two\n\n```\ndocker pull ghcr.io/lelibrary/lelibrary:v5.5.0\n```',
     prerelease: false,
     published_at: '2026-10-22T12:00:00Z',
     assets: [],
@@ -53,16 +53,16 @@ test('push message links every commit by its full SHA on github.com', () => {
   const [embed] = embeds;
   assert.deepEqual(allowed_mentions, { parse: [] });
   assert.equal(embed.title, '[LeLibrary:v5.5] 2 new commits');
-  assert.ok(embed.description.includes(`(https://github.com/leleasley/LeLibrary/commit/${sha(2)})`));
-  assert.ok(embed.description.includes(`(https://github.com/leleasley/LeLibrary/commit/${sha(3)})`));
+  assert.ok(embed.description.includes(`(https://github.com/LeLibrary/LeLibrary/commit/${sha(2)})`));
+  assert.ok(embed.description.includes(`(https://github.com/LeLibrary/LeLibrary/commit/${sha(3)})`));
   assert.ok(!embed.description.includes('api.github.com'));
   assert.ok(embed.description.includes('fix: first change'));
   assert.ok(!embed.description.includes('long body'), 'only the subject line is shown');
   assert.ok(embed.description.includes('\\*change\\* \\[x\\](y)'), 'markdown in messages is escaped');
-  assert.equal(embed.url, `https://github.com/leleasley/LeLibrary/compare/${sha(1)}...${sha(3)}`);
+  assert.equal(embed.url, `https://github.com/LeLibrary/LeLibrary/compare/${sha(1)}...${sha(3)}`);
   const fields = Object.fromEntries(embed.fields.map((field) => [field.name, field.value]));
   assert.equal(fields.Commits, '2');
-  assert.equal(fields.Branch, '[v5.5](https://github.com/leleasley/LeLibrary/tree/v5.5)');
+  assert.equal(fields.Branch, '[v5.5](https://github.com/LeLibrary/LeLibrary/tree/v5.5)');
   assert.equal(embed.author.name, 'leleasley');
 });
 
@@ -76,7 +76,7 @@ test('a big push is grouped into one message and says how many are hidden', () =
 
 test('a new branch links its history, a fast-forward does not re-list old commits', () => {
   const created = buildPushMessage(pushEvent({ created: true, before: '0'.repeat(40) }), { ...CONTEXT, total: 2 }).embeds[0];
-  assert.equal(created.url, `https://github.com/leleasley/LeLibrary/commits/${sha(3)}`);
+  assert.equal(created.url, `https://github.com/LeLibrary/LeLibrary/commits/${sha(3)}`);
   assert.ok(created.fields.some((field) => field.value.includes('(new)')));
 
   const ff = buildPushMessage(pushEvent({ ref: 'refs/heads/main', commits: pushEvent().commits.map((c) => ({ ...c, distinct: false })) }), { ...CONTEXT, total: 0 }).embeds[0];
@@ -86,19 +86,19 @@ test('a new branch links its history, a fast-forward does not re-list old commit
 
 test('release message carries name, tag, date, notes, link and downloads', () => {
   const [embed] = buildReleaseMessage(release({
-    assets: [{ name: 'lelibrary.tar.gz', size: 2_500_000, browser_download_url: 'https://github.com/leleasley/LeLibrary/releases/download/v5.5.0/lelibrary.tar.gz' }],
+    assets: [{ name: 'lelibrary.tar.gz', size: 2_500_000, browser_download_url: 'https://github.com/LeLibrary/LeLibrary/releases/download/v5.5.0/lelibrary.tar.gz' }],
   }), CONTEXT).embeds;
   assert.equal(embed.title, 'LeLibrary v5.5.0');
-  assert.equal(embed.url, 'https://github.com/leleasley/LeLibrary/releases/tag/v5.5.0');
+  assert.equal(embed.url, 'https://github.com/LeLibrary/LeLibrary/releases/tag/v5.5.0');
   assert.ok(embed.description.startsWith('**New things**'), 'headings become bold lines');
   assert.equal(embed.timestamp, '2026-10-22T12:00:00Z');
   const fields = Object.fromEntries(embed.fields.map((field) => [field.name, field.value]));
   assert.equal(fields.Version, '`v5.5.0`');
   assert.equal(fields.Type, 'Release');
   assert.equal(fields.Published, `<t:${Date.parse('2026-10-22T12:00:00Z') / 1000}:F>`);
-  assert.ok(fields.Downloads.includes('[lelibrary.tar.gz](https://github.com/leleasley/LeLibrary/releases/download/v5.5.0/lelibrary.tar.gz) (2.4 MB)'));
+  assert.ok(fields.Downloads.includes('[lelibrary.tar.gz](https://github.com/LeLibrary/LeLibrary/releases/download/v5.5.0/lelibrary.tar.gz) (2.4 MB)'));
   assert.ok(fields.Downloads.includes('/archive/refs/tags/v5.5.0.zip'));
-  assert.equal(fields['Docker image'], '```\ndocker pull ghcr.io/leleasley/lelibrary:v5.5.0\n```');
+  assert.equal(fields['Docker image'], '```\ndocker pull ghcr.io/lelibrary/lelibrary:v5.5.0\n```');
 });
 
 test('a pre-release is labelled and coloured differently', () => {
@@ -112,7 +112,7 @@ test('long release notes are cut cleanly, fences closed, with a link to the rest
   const [embed] = buildReleaseMessage(release({ body }), CONTEXT).embeds;
   assert.ok(embed.description.length <= LIMITS.description);
   assert.ok(embedLength(embed) <= LIMITS.total);
-  assert.ok(embed.description.includes('[Read the full release notes on GitHub](https://github.com/leleasley/LeLibrary/releases/tag/v5.5.0)'));
+  assert.ok(embed.description.includes('[Read the full release notes on GitHub](https://github.com/LeLibrary/LeLibrary/releases/tag/v5.5.0)'));
   assert.equal((embed.description.match(/```/g) || []).length % 2, 0);
 });
 
@@ -152,7 +152,7 @@ test('every embed fits Discord limits even with huge inputs', () => {
 test('test message is clearly labelled', () => {
   const [embed] = buildTestMessage({ ...CONTEXT, actor: 'leleasley', runId: '42' }).embeds;
   assert.equal(embed.title, 'Test notification');
-  assert.equal(embed.url, 'https://github.com/leleasley/LeLibrary/actions/runs/42');
+  assert.equal(embed.url, 'https://github.com/LeLibrary/LeLibrary/actions/runs/42');
   assert.match(embed.footer.text, /test/i);
 });
 
@@ -225,7 +225,7 @@ function eventFile(payload) {
 
 test('run: a missing secret skips automatic runs but fails the manual test', async () => {
   const logs = [];
-  const base = { GITHUB_REPOSITORY: 'leleasley/LeLibrary', GITHUB_EVENT_PATH: eventFile(pushEvent()) };
+  const base = { GITHUB_REPOSITORY: 'LeLibrary/LeLibrary', GITHUB_EVENT_PATH: eventFile(pushEvent()) };
   assert.deepEqual(await run({ ...base, NOTIFY_MODE: 'push' }, { log: (line) => logs.push(line) }), { skipped: true });
   assert.match(logs[0], /^::warning::/);
   await assert.rejects(run({ ...base, NOTIFY_MODE: 'test' }, { log: () => {} }), /Nothing was sent/);
@@ -235,7 +235,7 @@ test('run: sends the right message per mode and logs no secret', async () => {
   const logs = [];
   const sent = [];
   const fetchImpl = async (url, init) => { sent.push({ url: String(url), body: JSON.parse(init.body) }); return response(200, { id: '1' }); };
-  const env = { DISCORD_WEBHOOK_URL: FAKE_HOOK, GITHUB_REPOSITORY: 'leleasley/LeLibrary', GITHUB_SERVER_URL: 'https://github.com' };
+  const env = { DISCORD_WEBHOOK_URL: FAKE_HOOK, GITHUB_REPOSITORY: 'LeLibrary/LeLibrary', GITHUB_SERVER_URL: 'https://github.com' };
   await run({ ...env, NOTIFY_MODE: 'push', GITHUB_EVENT_PATH: eventFile(pushEvent()) }, { fetchImpl, log: (l) => logs.push(l) });
   await run({ ...env, NOTIFY_MODE: 'release', GITHUB_EVENT_PATH: eventFile({ action: 'published', release: release() }) }, { fetchImpl, log: (l) => logs.push(l) });
   await run({ ...env, NOTIFY_MODE: 'test', GITHUB_EVENT_PATH: eventFile({}), GITHUB_ACTOR: 'leleasley' }, { fetchImpl, log: (l) => logs.push(l) });
@@ -246,7 +246,7 @@ test('run: sends the right message per mode and logs no secret', async () => {
 });
 
 test('run: deleted branches and tag pushes are not announced', async () => {
-  const env = { DISCORD_WEBHOOK_URL: FAKE_HOOK, GITHUB_REPOSITORY: 'leleasley/LeLibrary', NOTIFY_MODE: 'push' };
+  const env = { DISCORD_WEBHOOK_URL: FAKE_HOOK, GITHUB_REPOSITORY: 'LeLibrary/LeLibrary', NOTIFY_MODE: 'push' };
   const fetchImpl = async () => { throw new Error('should not send'); };
   assert.deepEqual(await run({ ...env, GITHUB_EVENT_PATH: eventFile(pushEvent({ deleted: true, commits: [] })) }, { fetchImpl, log: () => {} }), { skipped: true });
   assert.deepEqual(await run({ ...env, GITHUB_EVENT_PATH: eventFile(pushEvent({ ref: 'refs/tags/v5.5.0' })) }, { fetchImpl, log: () => {} }), { skipped: true });

@@ -179,7 +179,7 @@ export function SupportersPage() {
             <h2 id="sp-join">{t('supporters.joinTitle')}</h2>
           </div>
           <div className="sp-join">
-            <a className="sp-card" href="https://github.com/leleasley/LeLibrary" target="_blank" rel="noopener">
+            <a className="sp-card" href="https://github.com/LeLibrary/LeLibrary" target="_blank" rel="noopener">
               <strong>{t('supporters.openSource')}</strong>
               <span>{t('supporters.openSourceText')}</span>
               <em>GitHub ↗</em>

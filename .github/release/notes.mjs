@@ -20,8 +20,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const REPO = 'leleasley/LeLibrary';
-const IMAGE = 'ghcr.io/leleasley/lelibrary';
+const REPO = 'LeLibrary/LeLibrary';
+const IMAGE = 'ghcr.io/lelibrary/lelibrary';
 
 const INTRO = `Notes for the current version. Every earlier version is on [GitHub Releases](https://github.com/${REPO}/releases).`;
 
