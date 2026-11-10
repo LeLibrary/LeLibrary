@@ -9,6 +9,7 @@ const { mountCatalogRoutes } = require('./catalog.ts');
 const { mountMetaRoutes } = require('./meta.ts');
 const { mountStreamRoutes } = require('./stream.ts');
 const { mountIntegrationRoutes } = require('./integration.ts');
+const { mountJellyfinRoutes } = require('./jellyfin.ts');
 const { mountCoreRoutes } = require('./core.ts');
 const { mountSettingsRoutes } = require('./settings.ts');
 const { posterFp } = require('./shared.ts');
@@ -25,6 +26,10 @@ function mountAddonRoutes(app: any, deps: any): void {
   mountImageRoutes(app, { resolveConfig });
 
   mountManifestRoutes(app, { resolveConfig });
+
+  // Read-only plan for the Jellyfin plugin. Same install-URL capability as
+  // every other addon read; the payload never carries a key.
+  mountJellyfinRoutes(app, { resolveConfig });
 
   app.post('/cache/clear', async (req: any, res: any) => {
     // Admin-only: requires CACHE_CLEAR_SECRET to be set. Disabled otherwise,
