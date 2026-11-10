@@ -341,6 +341,39 @@ export function PublishPanel({
         </div>
       </details>
 
+          <details className="install-option">
+            <summary>
+              <span className="install-option-icon"><img src="/client-logos/jellyfin.jpg?v=1" alt="" /></span>
+              <span><strong>Jellyfin</strong><small>Turn this library into Jellyfin media folders.</small></span>
+              <span className="install-option-arrow" aria-hidden="true">›</span>
+            </summary>
+            <div className="install-option-body">
+              <p className="setup-hint">
+                Add the plugin repository in Jellyfin, install LeLibrary, then paste this install link
+                and your own debrid key in the plugin settings. Nothing is downloaded: the plugin writes
+                playable links and Jellyfin streams straight from your debrid account.
+              </p>
+              <div className="copy-row">
+                <input readOnly value={JELLYFIN_REPO_URL} aria-label="Plugin repository URL" onFocus={(event) => event.target.select()} />
+                <button
+                  type="button" className="created-copy-btn" aria-label="Copy plugin repository URL"
+                  onClick={() => void copy(JELLYFIN_REPO_URL, 'jellyfin-repo', 'Repository URL copied')}
+                >
+                  {copied === 'jellyfin-repo' ? 'Copied ✓' : 'Copy'}
+                </button>
+              </div>
+              <div className="copy-row">
+                <input readOnly value={setupUrl} aria-label="LeLibrary URL for the plugin" onFocus={(event) => event.target.select()} />
+                <button
+                  type="button" className="created-copy-btn" aria-label="Copy install link for Jellyfin"
+                  onClick={() => void copy(setupUrl, 'jellyfin-install', 'Install link copied')}
+                >
+                  {copied === 'jellyfin-install' ? 'Copied ✓' : 'Copy'}
+                </button>
+              </div>
+            </div>
+          </details>
+
       <details className="publish-more">
         <summary>
           <span><strong>More players</strong><small>{hasCollections ? 'Other apps, manual setup and sharing.' : 'Other apps and manual setup.'}</small></span>
@@ -393,39 +426,6 @@ export function PublishPanel({
               ))}
             </div>
           </section>
-
-          <details className="install-option">
-            <summary>
-              <span className="install-option-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" /><path d="M9 2v4M15 2v4M2 9h4M2 15h4M18 9h4M18 15h4M9 18v4M15 18v4" /></svg></span>
-              <span><strong>Jellyfin</strong><small>Turn this library into Jellyfin media folders.</small></span>
-              <span className="install-option-arrow" aria-hidden="true">›</span>
-            </summary>
-            <div className="install-option-body">
-              <p className="setup-hint">
-                Add the plugin repository in Jellyfin, install LeLibrary, then paste this install link
-                and your own debrid key in the plugin settings. Nothing is downloaded: the plugin writes
-                playable links and Jellyfin streams straight from your debrid account.
-              </p>
-              <div className="copy-row">
-                <input readOnly value={JELLYFIN_REPO_URL} aria-label="Plugin repository URL" onFocus={(event) => event.target.select()} />
-                <button
-                  type="button" className="created-copy-btn" aria-label="Copy plugin repository URL"
-                  onClick={() => void copy(JELLYFIN_REPO_URL, 'jellyfin-repo', 'Repository URL copied')}
-                >
-                  {copied === 'jellyfin-repo' ? 'Copied ✓' : 'Copy'}
-                </button>
-              </div>
-              <div className="copy-row">
-                <input readOnly value={setupUrl} aria-label="LeLibrary URL for the plugin" onFocus={(event) => event.target.select()} />
-                <button
-                  type="button" className="created-copy-btn" aria-label="Copy install link for Jellyfin"
-                  onClick={() => void copy(setupUrl, 'jellyfin-install', 'Install link copied')}
-                >
-                  {copied === 'jellyfin-install' ? 'Copied ✓' : 'Copy'}
-                </button>
-              </div>
-            </div>
-          </details>
 
           <details className="install-option">
             <summary>
