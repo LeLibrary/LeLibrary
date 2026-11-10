@@ -22,6 +22,7 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ### Changes
 
+- The Docker image now lives at `ghcr.io/lelibrary/lelibrary`, because the project moved to its own GitHub organisation. An existing `compose.yml` that still points at `ghcr.io/leleasley/lelibrary` keeps working, but it stops receiving new versions: change the `image:` line once.
 - Simkl now uses Simkl's newer sign-in. Connections made before this keep working for now; reconnect Simkl once to keep it working after 2027.
 - On the edit page, connecting or disconnecting Simkl, AniList or Trakt now waits for Save like every other change. The card says "not saved yet" until you save, and Clear my edits undoes it.
 - Clicking a key card now also switches it on, the same as clicking its switch.

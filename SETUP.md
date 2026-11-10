@@ -304,6 +304,11 @@ by mistake, make a new one:
 You need Docker with the Compose plugin. LeLibrary runs from the published
 image (`ghcr.io/lelibrary/lelibrary`); you never build anything.
 
+> The image moved from `ghcr.io/leleasley/lelibrary` when the project moved to
+> its own GitHub organisation. GitHub does not redirect container images, so an
+> existing `compose.yml` keeps pulling the old name: it still works, but it
+> stops receiving new versions. Change the `image:` line once.
+
 ### 1. Make a folder and a `.env`
 
 ```bash

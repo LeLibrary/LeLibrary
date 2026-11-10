@@ -122,6 +122,12 @@ line in `compose.yml`, for example:
 image: ghcr.io/lelibrary/lelibrary:v5.5.0
 ```
 
+> The image moved from `ghcr.io/leleasley/lelibrary` to
+> `ghcr.io/lelibrary/lelibrary` when the project moved to its own GitHub
+> organisation. GitHub does not redirect container images, so an existing
+> `compose.yml` keeps pulling the old name: it still works, but it stops
+> receiving new versions. Change the `image:` line once.
+
 Then run `docker compose pull && docker compose up -d`. Keep the generated
 secret in `.env`; the selected image version and any port or memory-limit
 customisation belong in `compose.yml`.
