@@ -21,6 +21,18 @@ describe('Jellyfin card', () => {
     expect(html).toContain('value="/abc.def"');
   });
 
+  it('sits directly under Add to Stremio, above More players', () => {
+    const html = render();
+    // The logo also appears as a React 19 image preload in the head, so the
+    // card's own summary is what pins the body order.
+    const jellyfin = html.indexOf('<strong>Jellyfin</strong>');
+    const stremio = html.indexOf('Add to Stremio');
+    const more = html.indexOf('More players');
+    expect(stremio).toBeGreaterThan(-1);
+    expect(jellyfin).toBeGreaterThan(stremio);
+    expect(jellyfin).toBeLessThan(more);
+  });
+
   it('says the plugin asks for the debrid key of the user, not ours', () => {
     expect(render()).toMatch(/your own debrid key/i);
   });
