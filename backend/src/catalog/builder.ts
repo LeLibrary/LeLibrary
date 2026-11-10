@@ -2284,8 +2284,9 @@ export interface BuilderApi {
   isEpisodePackMisreadAsMovie: any;
   episodeTitleMatches: any;
   episodeFileInfo: any;
+  embeddedItemFiles: any;
   flushMatchCache: any;
   matchItem: any;
 }
 
-module.exports = { PLAY_PREFIX, playRef, ownedStreamHints, wholeItemFileId, buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, noticeKindEnabled, NOTICE_KINDS, makeProviderRateLimitNotice, libraryStreamFmtFp, buildMatchMeta, publishMatchEntry, remapSplitSeason, resolveSplitTarget, canonicalSource, SPLIT_SHOW_SEASON_REMAP, summarizePackEpisodes, shouldProbeEpisodeNamedPack, addOwnedEpisodeAvailability, addOwnedAirDates, ownedDateKey, mergePackEpisodeRange, embeddedPackEntry, probePackEpisodes, isEpisodePackMisreadAsMovie, episodeTitleMatches, episodeFileInfo, flushMatchCache, matchItem } satisfies BuilderApi;
+module.exports = { PLAY_PREFIX, playRef, ownedStreamHints, wholeItemFileId, buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, noticeKindEnabled, NOTICE_KINDS, makeProviderRateLimitNotice, libraryStreamFmtFp, buildMatchMeta, publishMatchEntry, remapSplitSeason, resolveSplitTarget, canonicalSource, SPLIT_SHOW_SEASON_REMAP, summarizePackEpisodes, shouldProbeEpisodeNamedPack, addOwnedEpisodeAvailability, addOwnedAirDates, ownedDateKey, mergePackEpisodeRange, embeddedPackEntry, probePackEpisodes, isEpisodePackMisreadAsMovie, episodeTitleMatches, episodeFileInfo, embeddedItemFiles, flushMatchCache, matchItem } satisfies BuilderApi;

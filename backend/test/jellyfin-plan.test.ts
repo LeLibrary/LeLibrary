@@ -49,3 +49,97 @@ test('itemKey is provider scoped', () => {
   assert.equal(itemKey('torbox', 42, 7), 'torbox:42:7');
   assert.equal(itemKey('realdebrid', 'ABC', 0), 'realdebrid:ABC:0');
 });
+
+// ── buildPlan: matched metas -> the plan contract ───────────────────────
+const { buildPlan } = require('../src/jellyfin/plan.ts');
+
+const movieItem = (id: number, files: any[]) => ({
+  source: 'torrent', id, name: 'The Matrix 1999 2160p DV', size: 20e9, created_at: '2026-01-01',
+  files,
+});
+
+const movieMeta = (files: any[]) => ({
+  id: 'tt0133093', tmdbId: 603, imdbId: 'tt0133093', name: 'The Matrix', year: 1999,
+  catalogType: 'movie', poster: '/erdb/poster/tmdb:movie:603',
+  torboxItems: [{ item: movieItem(11, files), season: null, episode: null }],
+});
+
+test('movies use the largest non-junk video file', () => {
+  const { plan, skipped } = buildPlan({
+    provider: 'torbox', baseUrl: 'https://l.uk/abc.def',
+    metas: [movieMeta([
+      { id: 1, name: 'The.Matrix.sample.mkv', size: 5e6 },
+      { id: 2, name: 'The.Matrix.2160p.DV.mkv', size: 18e9 },
+    ])],
+  });
+  assert.equal(skipped, 0);
+  assert.equal(plan.items.length, 1);
+  assert.equal(plan.items[0].key, 'torbox:11:2');
+  assert.equal(plan.items[0].path, 'The Matrix (1999)/The Matrix (1999) - 2160p DV.strm');
+  assert.equal(plan.items[0].poster, 'https://l.uk/abc.def/erdb/poster/tmdb:movie:603');
+});
+
+test('a sample-only movie is skipped, never emitted', () => {
+  const { plan, skipped } = buildPlan({
+    provider: 'torbox', baseUrl: 'https://l.uk/abc.def',
+    metas: [movieMeta([{ id: 1, name: 'Film.sample.mkv', size: 5e6 }])],
+  });
+  assert.equal(plan.items.length, 0);
+  assert.equal(skipped, 1);
+});
+
+test('an episode is matched to its own file inside a pack', () => {
+  const item = {
+    source: 'torrent', id: 77, name: 'The Expanse S01 2160p',
+    files: [
+      { id: 1, name: 'The.Expanse.S01E01.mkv', size: 3e9 },
+      { id: 2, name: 'The.Expanse.S01E03.mkv', size: 3e9 },
+    ],
+  };
+  const meta = {
+    id: 'tt3230854', tmdbId: 63639, imdbId: 'tt3230854', name: 'The Expanse', year: 2015,
+    catalogType: 'series', poster: 'https://img/p.jpg', season: 1, episode: 3,
+    torboxItems: [{ item, season: 1, episode: 3 }],
+  };
+  const { plan } = buildPlan({ provider: 'torbox', baseUrl: 'https://l.uk/abc.def', metas: [meta] });
+  const episode = plan.items.find((i: any) => i.kind === 'episode');
+  assert.equal(episode.key, 'torbox:77:2');
+  assert.equal(episode.path, 'The Expanse (2015)/Season 01/The Expanse S01E03.strm');
+  assert.equal(plan.libraries.find((l: any) => l.key === 'shows').kind, 'shows');
+});
+
+test('an episode with no matching file is skipped', () => {
+  const item = { source: 'torrent', id: 78, name: 'Pack', files: [{ id: 1, name: 'random.mkv', size: 3e9 }] };
+  const meta = {
+    id: 'tt1', tmdbId: 1, name: 'Show', year: 2020, catalogType: 'series', poster: 'https://img/p.jpg',
+    torboxItems: [{ item, season: 1, episode: 2 }],
+  };
+  const { plan, skipped } = buildPlan({ provider: 'torbox', baseUrl: 'https://l.uk/x', metas: [meta] });
+  assert.equal(plan.items.length, 0);
+  assert.equal(skipped, 1);
+});
+
+test('two copies of one film produce one deterministic path', () => {
+  const first = movieMeta([{ id: 2, name: 'The.Matrix.2160p.mkv', size: 18e9 }]);
+  const second = {
+    ...movieMeta([{ id: 9, name: 'The.Matrix.2160p.mkv', size: 18e9 }]),
+    torboxItems: [{
+      item: { source: 'torrent', id: 12, name: 'The Matrix 1999 2160p', files: [{ id: 9, name: 'The.Matrix.2160p.mkv', size: 18e9 }] },
+      season: null, episode: null,
+    }],
+  };
+  const { plan } = buildPlan({ provider: 'torbox', baseUrl: 'https://l.uk/x', metas: [second, first] });
+  assert.equal(plan.items.length, 1);
+  assert.equal(plan.items[0].key, 'torbox:11:2'); // lowest item id wins, whatever order the metas arrive in
+});
+
+test('the plan carries no key material', () => {
+  const { plan } = buildPlan({
+    provider: 'torbox', baseUrl: 'https://l.uk/abc.def',
+    metas: [{ ...movieMeta([{ id: 2, name: 'The.Matrix.2160p.mkv', size: 18e9 }]), torboxApiKey: 'SECRET', apiKey: 'SECRET' }],
+  });
+  const json = JSON.stringify(plan);
+  assert.equal(json.includes('SECRET'), false);
+  assert.equal(plan.schemaVersion, 1);
+  assert.equal(plan.provider, 'torbox');
+});
