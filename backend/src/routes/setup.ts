@@ -165,13 +165,10 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     res.status(410).json({ error: MIGRATE_GONE });
   });
 
-  // Edits are authorised by either a bearer edit token from /unlock or the
-  // password itself. Both arrive in the request (never a cookie), so nothing
-  // ambient is sent by the browser and CSRF does not apply.
-  // A setup without a password proves ownership with its own install link
-  // (uuid.secret, the read capability) in the body. SECURITY (5.9.6, audit
-  // B2): the bare UUID used to be enough to edit, delete or rotate such a
-  // setup, and /unlock accepted any password for it.
+  // A passwordless setup proves ownership at /unlock with its own install
+  // link (uuid.secret). All editor routes require the resulting bearer session:
+  // accepting passwords directly on other routes bypasses the unlock gate and
+  // its bot check and password-attempt limiter.
   async function provesInstallToken(req: Request, uuid: string, store: ReturnType<ConfigStoreApi['createConfigStore']>): Promise<boolean> {
     const token = (req.body as { installToken?: unknown } | undefined)?.installToken;
     if (typeof token !== 'string' || !token || token.length > 512) return false;
@@ -179,16 +176,10 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     return Boolean(owner && owner.uuid === uuid);
   }
 
-  async function authorizeEdit(req: Request, uuid: string, store: ReturnType<ConfigStoreApi['createConfigStore']>, opened: OpenedConfig): Promise<boolean> {
+  function authorizeEdit(req: Request, uuid: string): boolean {
     const bearer = bearerToken(req);
-    if (bearer) {
-      const session = sessions.verify(bearer);
-      return Boolean(session && session.uuid === uuid);
-    }
-    if (!opened.hasPassword) return provesInstallToken(req, uuid, store);
-    const password = (req.body as { password?: unknown } | undefined)?.password;
-    if (typeof password !== 'string') return false;
-    return store.checkPassword(uuid, password);
+    const session = bearer ? sessions.verify(bearer) : null;
+    return Boolean(session && session.uuid === uuid);
   }
 
   const withStore = async (res: Response) => {
@@ -472,7 +463,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
     const opened = await store.resolveByUuid(uuid);
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
-    if (!(await authorizeEdit(req, uuid, store, opened))) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
     const view = editorConfigView(opened);
     // Saved collections can still name relative or retired artwork links
     // (made before 5.8): the editor gets the full link to the current art.
@@ -512,7 +503,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
     const opened = await store.resolveByUuid(uuid);
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
-    if (!(await authorizeEdit(req, uuid, store, opened))) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
     const key = String(((opened.keys ?? {}) as Record<string, unknown>)['mdblistKey'] || '').trim();
     if (!key) { res.status(404).json({ error: 'This setup has no MDBList key' }); return; }
     await sendMdblistLists(res, key, req.query['refresh'] === '1');
@@ -531,7 +522,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
     const opened = await store.resolveByUuid(uuid);
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
-    if (!(await authorizeEdit(req, uuid, store, opened))) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
     const platform = req.query['platform'];
     if (platform !== 'nuvio' && platform !== 'stremio') { res.status(400).json({ error: 'Unknown platform' }); return; }
     const origin = (process.env['BASE_URL'] || '').replace(/\/+$/, '') || `${req.protocol}://${req.get('host')}`;
@@ -561,39 +552,26 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
       const opened = await store.resolveByUuid(uuid);
       if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
-      if (!(await authorizeEdit(req, uuid, store, opened))) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+      if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
       const decided = resolveRevealKey(opened, (req.body as { service?: unknown } | undefined)?.service);
       if (!decided.ok) { res.status(decided.status).json({ error: decided.error }); return; }
       console.warn(`[setup] key reveal: uuid=${uuid.slice(0, 8)} service=${(req.body as { service?: unknown } | undefined)?.service}`);
       res.json({ service: (req.body as { service?: unknown } | undefined)?.service, key: decided.key });
     });
 
-  // Save an edit. Password or bearer token required; the secret never changes here.
+  // Save an edit. A matching edit session is required; the secret never changes here.
   router.put('/:uuid', async (req: Request, res: Response) => {
     const store = await withStore(res);
     if (!store) return;
     const uuid = String(req.params.uuid || '').toLowerCase();
     if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
-    const limiter = getSetupLimiter();
-    const gate = limiter.check(clientIp(req), uuid);
-    if (!gate.allowed) {
-      res.set('Retry-After', String(Math.ceil(gate.retryAfterMs / 1000)));
-      res.status(429).json({ error: 'Too many attempts. Try again shortly.' });
-      return;
-    }
     const { config, keys, tier, name, clearKeys, clearConfig } = (req.body ?? {}) as Record<string, unknown>;
     const opened = await store.resolveByUuid(uuid);
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
-    if (!(await authorizeEdit(req, uuid, store, opened))) {
-      const failure = limiter.fail(clientIp(req), uuid);
-      if (failure.locked) res.set('Retry-After', String(Math.ceil(failure.retryAfterMs / 1000)));
-      res.status(401).json({ error: 'Unlock the setup before editing it' });
-      return;
-    }
+    if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup before editing it' }); return; }
     if (tier !== undefined && !TIERS.includes(tier as never)) { res.status(400).json({ error: 'Invalid tier' }); return; }
     const history = withCompactWatchHistory(withoutAnilistUser(config));
     const cleanedConfig = history.config;
-    limiter.succeed(clientIp(req), uuid);
     // Watchlist connects and disconnects staged on the edit page (v6): a
     // pending connect commits only for the edit session that signed in
     // (setup/pending-connections.ts); a removal needs any edit authority.
@@ -643,7 +621,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
   });
 
   // Delete everything stored for this UUID (setup row: config + sealed keys).
-  // Same edit authorization as save: bearer token or password. All edit
+  // Same edit authorization as save: a matching bearer session. All edit
   // sessions for the UUID die with it, so a logged-in tab cannot keep
   // writing after deletion. The install URL stops working immediately.
   router.delete('/:uuid', async (req: Request, res: Response) => {
@@ -653,7 +631,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
     const opened = await store.resolveByUuid(uuid);
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
-    if (!(await authorizeEdit(req, uuid, store, opened))) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
     const removed = await store.remove(uuid);
     if (!removed) { res.status(404).json({ error: 'Setup not found' }); return; }
     sessions.revokeUuid(uuid);
@@ -674,7 +652,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
     const opened = await store.resolveByUuid(uuid);
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
-    if (!(await authorizeEdit(req, uuid, store, opened))) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
     const rotated = await store.rotateSecret(uuid);
     // The old install URL is dead: every other edit session goes with it.
     // The caller keeps theirs, so the page they are on stays unlocked.
@@ -690,13 +668,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
     const opened = await store.resolveByUuid(uuid);
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
-    if (!(await authorizeEdit(req, uuid, store, opened))) {
-      const limiter = getSetupLimiter();
-      const failure = limiter.fail(clientIp(req), uuid);
-      if (failure.locked) res.set('Retry-After', String(Math.ceil(failure.retryAfterMs / 1000)));
-      res.status(401).json({ error: 'Unlock the setup first' });
-      return;
-    }
+    if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
     const next = (req.body as { password?: unknown } | undefined)?.password;
     if (typeof next !== 'string' || next.length < 8) {
       res.status(400).json({ error: 'Password must be at least 8 characters' });

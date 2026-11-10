@@ -156,7 +156,9 @@ async function verifyTurnstile(token: unknown, { action = '', remoteip = '' }: {
       signal: AbortSignal.timeout(10000),
       body,
     });
-    if (!response.ok) return { ok: false, error: 'verify-unreachable' };
+    // Only an upstream server failure is treated as an outage. A 4xx
+    // response (including a rejected request) must never bypass the gate.
+    if (!response.ok) return { ok: false, error: response.status >= 500 ? 'verify-unreachable' : 'invalid-token' };
     result = await response.json();
   } catch {
     return { ok: false, error: 'verify-unreachable' };

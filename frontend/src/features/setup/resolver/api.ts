@@ -85,10 +85,20 @@ export async function listSetups(): Promise<SavedSetupSummary[]> {
     .filter((row): row is SavedSetupSummary => row !== null);
 }
 
-export function unlockSetup(uuid: string, password: string, turnstile?: string | null): Promise<UnlockResult> {
+export function installTokenFromInput(input: string): string {
+  const value = input.trim();
+  try {
+    return decodeURIComponent(new URL(value).pathname.split('/').filter(Boolean)[0] || '');
+  } catch {
+    return value;
+  }
+}
+
+export function unlockSetup(uuid: string, credential: string, turnstile?: string | null, passwordless = false): Promise<UnlockResult> {
+  const body = passwordless ? { installToken: installTokenFromInput(credential) } : { password: credential };
   return apiClient.post<UnlockResult>(`/api/setup/${encodeURIComponent(uuid)}/unlock`, turnstile
-    ? { password, 'cf-turnstile-response': turnstile }
-    : { password });
+    ? { ...body, 'cf-turnstile-response': turnstile }
+    : body);
 }
 
 // Mutations carry the bearer token, never a cookie and never the password.

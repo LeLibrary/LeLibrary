@@ -171,7 +171,8 @@ test('a staged disconnect is removed on Save (AniList also drops an old public n
     assert.deepEqual(app.saves.at(-1).clearConfig, ['anilistUser']);
     // A removal needs edit authority like any other edit.
     assert.equal((await put(app, { connections: { trakt: { remove: true } } })).status, 401);
-    assert.equal((await put(app, { connections: { trakt: { remove: true } }, password: PASSWORD })).status, 200);
+    assert.equal((await put(app, { connections: { trakt: { remove: true } }, password: PASSWORD })).status, 401);
+    assert.equal((await put(app, { connections: { trakt: { remove: true } } }, auth(editToken))).status, 200);
     assert.equal(app.row.keys.watchlist.trakt, undefined);
   } finally { await app.close(); }
 });

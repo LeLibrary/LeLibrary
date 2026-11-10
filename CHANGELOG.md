@@ -46,10 +46,11 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ### Security
 
+- Setup edits, deletion, install-link rotation and saved-key reveal now require the edit session from Unlock. A password can no longer be guessed through other management endpoints without the unlock protections.
 - A Cloudflare check now appears under the password when you create a setup or unlock one to edit it, and the button waits until the check has passed. It only appears on sites that have Turnstile set up; self-hosted installs without it work as before.
 - Setup pages can no longer be shown inside another website's frame, which protects the password screens from click-jacking tricks.
 - An old settings endpoint could be told to save stream and poster settings for a setup it did not own. It now only saves for the browser's own settings, and setups made in v5.5 or later are always edited from their own setup page.
-- The fingerprints that keep one setup's cached posters, ratings and streams apart from another's are much longer now, so two setups can never share a cache entry by chance. Cached pages rebuild once after the update.
+- The fingerprints that keep one setup's cached posters, ratings and streams apart from another's are much longer now, making an accidental shared cache entry far less likely. Cached pages rebuild once after the update.
 - Several in-memory lists that could grow forever on a busy server now have limits.
 - Many leftovers from the old account system were removed from the code, and the Docker build no longer copies private notes or tooling into the image.
 

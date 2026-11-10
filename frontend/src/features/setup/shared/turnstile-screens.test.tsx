@@ -164,3 +164,24 @@ describe('useTurnstile', () => {
     expect(html).not.toMatch(/edit-unlock-btn" disabled/);
   });
 });
+
+describe('passwordless setup unlock', () => {
+  it('asks for an install link and retains the bot check', () => {
+    const html = render(<UnlockModal uuid="synthetic-id" tier="quick" passwordless
+      busy={false} loading={false} error={null} leaving={false}
+      password="" onPassword={() => {}} onSubmit={() => {}} turnstile={control('waiting')} />);
+    expect(html).toContain('Paste your install link to edit this setup.');
+    expect(html).toContain('Install link');
+    expect(html).toContain('ll-turnstile-widget');
+    expect(html).not.toContain('Forgotten passwords');
+  });
+
+  it('sends only the install token from a pasted URL', async () => {
+    const { unlockSetup, installTokenFromInput } = await import('@/features/setup/resolver/api');
+    expect(installTokenFromInput(' synthetic-id.synthetic-secret ')).toBe('synthetic-id.synthetic-secret');
+    void unlockSetup('synthetic-id', 'https://example.test/synthetic-id.synthetic-secret/manifest.json', 'synthetic-check', true);
+    expect(api.post).toHaveBeenLastCalledWith('/api/setup/synthetic-id/unlock', {
+      installToken: 'synthetic-id.synthetic-secret', 'cf-turnstile-response': 'synthetic-check',
+    });
+  });
+});

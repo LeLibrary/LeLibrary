@@ -111,6 +111,10 @@ recovery. If you lose both, you start a new setup.
    last page). Only what you changed is sent, and your install link stays
    exactly the same, so nothing needs reinstalling.
 
+For integrations that call the setup API directly: unlock first and send the
+returned edit session as a bearer token for editor operations. A password or
+install link sent directly to an edit endpoint is no longer accepted.
+
 The **Settings** tab on that page also lets you:
 
 - **Switch level**, for example from Quick Look up to Move In. The switch is

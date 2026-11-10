@@ -76,8 +76,9 @@ type EditView = 'edit' | 'library' | 'nuvio' | 'settings';
 // Matches the .edit-stage fade in tier.css.
 const VIEW_FADE_MS = 170;
 
-export function UnlockModal({ uuid, tier, busy, loading, error, leaving, password, onPassword, onSubmit, turnstile }: {
+export function UnlockModal({ uuid, tier, busy, loading, error, leaving, password, onPassword, onSubmit, turnstile, passwordless = false }: {
   uuid: string;
+  passwordless?: boolean;
   tier: TierId;
   busy: boolean;
   loading: boolean;
@@ -98,16 +99,16 @@ export function UnlockModal({ uuid, tier, busy, loading, error, leaving, passwor
         <img className="edit-unlock-logo" src="/LeLibrary-128.png" alt="" />
         <span className="setup-eyebrow">{TIER_LABELS[tier]}</span>
         <h1>Welcome back</h1>
-        <p>Enter your password to change this setup. Watching never asks for it.</p>
+        <p>{passwordless ? 'Paste your install link to edit this setup.' : 'Enter your password to change this setup. Watching never asks for it.'}</p>
         <label className="setup-field">
           <span>Setup id</span>
           <input className="edit-unlock-id" readOnly value={uuid} data-i18n-preserve onFocus={(event) => event.target.select()} />
         </label>
         <label className="setup-field">
-          <span>Password</span>
+          <span>{passwordless ? 'Install link' : 'Password'}</span>
           <input
             ref={inputRef}
-            type="password" autoComplete="current-password"
+            type="password" autoComplete={passwordless ? "off" : "current-password"}
             value={password} onChange={(event) => onPassword(event.target.value)}
             disabled={busy || loading}
           />
@@ -117,7 +118,7 @@ export function UnlockModal({ uuid, tier, busy, loading, error, leaving, passwor
         <button type="submit" className={`qs-cta edit-unlock-btn${busy || loading || !password || !turnstileReady(turnstile) ? '' : ' is-ready'}`} disabled={busy || loading || !password || !turnstileReady(turnstile)}>
           <span className="qs-cta-text">{loading ? 'Loading your settings…' : busy ? 'Checking…' : 'Unlock'}</span>
         </button>
-        <small className="edit-unlock-note">No email, no recovery. Forgotten passwords cannot be reset.</small>
+        {!passwordless && <small className="edit-unlock-note">No email, no recovery. Forgotten passwords cannot be reset.</small>}
       </form>
     </div>
   );
@@ -297,7 +298,7 @@ export function SetupEditPage() {
     setUnlockError(null);
     try {
       // Single-use token: the widget resets after every attempt.
-      const result = await submitWithTurnstile(unlockCheck, (token) => unlockSetup(uuid, password, token));
+      const result = await submitWithTurnstile(unlockCheck, (token) => unlockSetup(uuid, password, token, !summary?.hasPassword));
       setEditToken(result.editToken, result.editTokenExpiresInMs);
       setInstallToken(result.installToken);
       setPassword('');
@@ -872,7 +873,7 @@ export function SetupEditPage() {
       </div>
       {(!unlocked || leaving) && (
         <UnlockModal
-          uuid={uuid} tier={savedTier}
+          uuid={uuid} tier={savedTier} passwordless={!summary.hasPassword}
           busy={unlocking} loading={loadingSettings} error={unlockError} leaving={leaving}
           password={password} onPassword={setPassword} onSubmit={() => void unlock()}
           turnstile={unlockCheck}

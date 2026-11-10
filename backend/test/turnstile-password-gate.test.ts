@@ -149,6 +149,10 @@ test('a Cloudflare outage fails open; a rejected token still fails closed', asyn
       globalThis.fetch = async () => ({ ok: false, status: 503, json: async () => ({}) });
       const outage = await post(app.port, `/api/setup/${UUID}/unlock`, { password: 'whatever-1', 'cf-turnstile-response': 'synthetic-token' }, 'lelibrary.uk');
       assert.equal(outage.status, 401, 'reached the password check during the outage');
+      // A client error from Siteverify is not an outage and must fail closed.
+      globalThis.fetch = async () => ({ ok: false, status: 400, json: async () => ({}) });
+      const badRequest = await post(app.port, `/api/setup/${UUID}/unlock`, { password: 'whatever-1', 'cf-turnstile-response': 'synthetic-token' }, 'lelibrary.uk');
+      assert.equal(badRequest.status, 403, 'a 4xx cannot bypass the bot gate');
       // Cloudflare answers and rejects the token: closed.
       globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ success: false, 'error-codes': ['invalid-input-response'] }) });
       const rejected = await post(app.port, `/api/setup/${UUID}/unlock`, { password: 'whatever-1', 'cf-turnstile-response': 'synthetic-token' }, 'lelibrary.uk');
