@@ -96,6 +96,9 @@ mountAddonRoutes(app, { resolveConfig });
 // unlock must verify on the connection/push routes too.
 const setupEditSessions = createEditSessionStore();
 mountSetupRoutes(app, { editSessions: setupEditSessions });
+// Forgotten password / delete my setup (website form + the Discord bot).
+// Off unless RESET_BOT_SECRET and RESET_OPERATOR_DISCORD_ID are set.
+require('./src/routes/reset.ts').mountResetRoutes(app, { editSessions: setupEditSessions });
 mountSetupConnectionRoutes(app, { editSessions: setupEditSessions });
 mountSetupNuvioRoutes(app, { editSessions: setupEditSessions });
 mountSetupLibraryRoutes(app, { editSessions: setupEditSessions });
