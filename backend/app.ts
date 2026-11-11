@@ -86,19 +86,24 @@ require('./src/routes/releases.ts').mountReleasesRoutes(app);
 // Before the website router for the same reason: its 404 catch-all.
 require('./src/routes/csp-report.ts').mountCspReportRoutes(app);
 
+// One edit-session store for every setup route: bearer tokens issued at
+// unlock must verify on the connection/push routes too.
+const setupEditSessions = createEditSessionStore();
+
+// Forgotten password / delete my setup (website form + the Discord bot).
+// Off unless RESET_BOT_SECRET and RESET_OPERATOR_DISCORD_ID are set. It must
+// come BEFORE the website router: that router parses every JSON body at the
+// root, and the bot's HMAC is computed over the raw body, which only the
+// reset router's own parser captures (test/reset-full-app.test.ts).
+require('./src/routes/reset.ts').mountResetRoutes(app, { editSessions: setupEditSessions });
+
 if (createWebRoutes) app.use(createWebRoutes(resolveConfig));
 
 mountAddonRoutes(app, { resolveConfig });
 
 // v5.5 setup surface (create / unlock / save / rotate). Registered with the
 // other API routers so the SPA shell, mounted below, never claims it.
-// One edit-session store for every setup route: bearer tokens issued at
-// unlock must verify on the connection/push routes too.
-const setupEditSessions = createEditSessionStore();
 mountSetupRoutes(app, { editSessions: setupEditSessions });
-// Forgotten password / delete my setup (website form + the Discord bot).
-// Off unless RESET_BOT_SECRET and RESET_OPERATOR_DISCORD_ID are set.
-require('./src/routes/reset.ts').mountResetRoutes(app, { editSessions: setupEditSessions });
 mountSetupConnectionRoutes(app, { editSessions: setupEditSessions });
 mountSetupNuvioRoutes(app, { editSessions: setupEditSessions });
 mountSetupLibraryRoutes(app, { editSessions: setupEditSessions });
