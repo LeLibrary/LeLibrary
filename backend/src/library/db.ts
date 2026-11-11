@@ -229,12 +229,9 @@ const MIGRATIONS = [
      updated_at  timestamptz NOT NULL DEFAULT now(),
      PRIMARY KEY (entity_key, season, episode)
    )`,
-  // The episode still and the title's overview and backdrop, for the Jellyfin
-  // metadata route. Additive: the rows that lack them are refilled by the
-  // background facts fill and by the next resolve.
+  // The episode still, for the Jellyfin metadata route. Additive: the rows
+  // that lack it are refilled by the next resolve.
   `ALTER TABLE lib_episodes ADD COLUMN IF NOT EXISTS image text`,
-  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS overview text`,
-  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS backdrop_path text`,
   // Vacuum/analyze frequently updated library rows before dead tuples and
   // stale planner stats accumulate. Defaults wait for ~20% table churn.
   `ALTER TABLE lib_items SET (
@@ -314,6 +311,11 @@ const MIGRATIONS = [
   `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS runtime integer`,
   `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS certification_gb text`,
   `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS facts_v smallint`,
+  // The title's synopsis and TMDB backdrop, for the Jellyfin metadata route.
+  // Here rather than beside the other ALTERs, because this array runs in
+  // order and the table is only created a few statements above.
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS overview text`,
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS backdrop_path text`,
 ];
 
 async function migrate() {

@@ -103,6 +103,16 @@ test('an anime and a series with the same tmdb id are one show', () => {
   assert.equal(Object.keys(document.titles).filter((key) => key.startsWith('anime:')).length, 0);
 });
 
+test('a title keyed by a TVDB id cannot collide with a TMDB id', () => {
+  // TMDB and TVDB ids are both small integers in overlapping ranges.
+  const { document } = buildMetadata({
+    rows: [{ ...movieRow, tmdb_id: null, imdb_id: null, tvdb_id: 603 }],
+    now: 0,
+  });
+  assert.ok(document.titles['movie:tvdb:603']);
+  assert.equal(document.titles['movie:603'], undefined);
+});
+
 test('a title with no usable id is skipped and counted', () => {
   const { document, skipped } = buildMetadata({
     rows: [{ ...movieRow, tmdb_id: null, imdb_id: null, tvdb_id: null }],
@@ -110,4 +120,29 @@ test('a title with no usable id is skipped and counted', () => {
   });
   assert.equal(Object.keys(document.titles).length, 0);
   assert.equal(skipped, 1);
+});
+
+test('a date column is read whether it arrives as a string or a Date', () => {
+  // node-postgres parses a `date` into a JS Date.
+  const { document } = buildMetadata({
+    rows: [{
+      ...movieRow, release_date: new Date('1999-03-30T00:00:00.000Z'),
+      season: 1, episode: 3, episode_title: 'Remember the Cant',
+      air_date: new Date('2015-11-20T00:00:00.000Z'),
+    }],
+    now: 0,
+  });
+  assert.equal(document.titles['movie:603'].releaseDate, '1999-03-30');
+  assert.equal(document.titles['movie:603'].episodes['1:3'].airDate, '2015-11-20');
+});
+
+test('a show overview comes from the identity when the facts have none', () => {
+  const { document } = buildMetadata({
+    rows: [{
+      ...movieRow, media_type: 'series', entity_key: 'series:63639', tmdb_id: 63639,
+      overview: null, metadata: { overview: 'A missing girl.' },
+    }],
+    now: 0,
+  });
+  assert.equal(document.titles['tv:63639'].overview, 'A missing girl.');
 });

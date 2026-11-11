@@ -87,6 +87,28 @@ function textOrNull(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+// A date column. node-postgres parses a `date` into a JS Date, so a string-only
+// check silently drops every release and air date.
+function dateOrNull(value: unknown): string | null {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  return textOrNull(value);
+}
+
+// The show overview lives in the identity's metadata blob, which the library
+// filled from TVDB. The TMDB facts are the other source; a title has one or the
+// other until the facts fill has run for it.
+function overviewOf(row: MetadataRow): string | null {
+  const fromFacts = textOrNull(row.overview);
+  if (fromFacts) return fromFacts;
+  const metadata = row.metadata;
+  return metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+    ? textOrNull((metadata as Record<string, unknown>).overview)
+    : null;
+}
+
 function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isInteger(value) ? value : null;
 }
@@ -101,7 +123,9 @@ function kindOf(mediaType: string | null | undefined): string {
 function keyFor(kind: string, row: MetadataRow): string | null {
   if (row.tmdb_id) return `${kind}:${row.tmdb_id}`;
   if (row.imdb_id) return `${kind}:${row.imdb_id}`;
-  if (row.tvdb_id) return `${kind}:${row.tvdb_id}`;
+  // Namespaced: TMDB and TVDB ids are both small integers, so a bare TVDB id
+  // would collide with another title's TMDB id.
+  if (row.tvdb_id) return `${kind}:tvdb:${row.tvdb_id}`;
   return null;
 }
 
@@ -161,13 +185,13 @@ function buildMetadata(input: MetadataInput): { document: MetadataDocument; skip
         kind,
         title: textOrNull(row.title),
         year: numberOrNull(row.year),
-        overview: textOrNull(row.overview),
+        overview: overviewOf(row),
         runtime: numberOrNull(row.runtime),
         genres,
         rating: typeof row.vote_average === 'number' && Number.isFinite(row.vote_average) ? row.vote_average : null,
         voteCount: numberOrNull(row.vote_count),
         certification: textOrNull(row.certification),
-        releaseDate: textOrNull(row.release_date),
+        releaseDate: dateOrNull(row.release_date),
         poster: textOrNull(row.poster),
         backdrop: backdropUrl(row.backdrop_path),
         logo: textOrNull(row.logo),
@@ -187,7 +211,7 @@ function buildMetadata(input: MetadataInput): { document: MetadataDocument; skip
           title: episodeTitle,
           overview: episodeOverview,
           runtime: numberOrNull(row.episode_runtime),
-          airDate: textOrNull(row.air_date),
+          airDate: dateOrNull(row.air_date),
           still: textOrNull(row.image),
         };
       }
