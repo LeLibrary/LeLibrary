@@ -43,7 +43,8 @@
     "communityText": "Pide ayuda, comparte configuraciones y sugiere funciones.",
     "news": "Novedades",
     "newsText": "Publicaciones de versiones y anuncios.",
-    "disclaimer": "LeLibrary es un proyecto de la comunidad. No está afiliado ni respaldado por ninguno de los proyectos anteriores ni por ningún proveedor debrid. Los nombres y logotipos pertenecen a sus propietarios."
+    "disclaimer": "LeLibrary es un proyecto de la comunidad. No está afiliado ni respaldado por ninguno de los proyectos anteriores ni por ningún proveedor debrid. Los nombres y logotipos pertenecen a sus propietarios.",
+    "jellyfinText": "Tu biblioteca de debrid como una biblioteca real de Jellyfin, lista en unos dos minutos."
   },
   "status": {
     "eyebrow": "// estado del servicio",

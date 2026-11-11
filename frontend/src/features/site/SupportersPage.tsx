@@ -101,7 +101,7 @@ export function SupportersPage() {
           <ul className="sp-stats">
             <li><strong>{ARTISTS.length}</strong>{t('supporters.statArtists')}</li>
             <li><strong>{PROJECT_COUNT}</strong>{t('supporters.statProjects')}</li>
-            <li><strong>2</strong>{t('supporters.statPlayers')}</li>
+            <li><strong>3</strong>{t('supporters.statPlayers')}</li>
           </ul>
         </header>
 
@@ -119,6 +119,11 @@ export function SupportersPage() {
             <a className="sp-player is-nuvio" href="https://nuvio.tv/" target="_blank" rel="noopener">
               <img src="/nuvio.png" alt="" width="44" height="44" />
               <span><strong>Nuvio</strong><em>{t('supporters.nuvioText')}</em></span>
+              <i aria-hidden="true">↗</i>
+            </a>
+            <a className="sp-player is-jellyfin" href="/jellyfin">
+              <img src="/client-logos/jellyfin.jpg" alt="" width="44" height="44" />
+              <span><strong>Jellyfin</strong><em>{t('supporters.jellyfinText')}</em></span>
               <i aria-hidden="true">↗</i>
             </a>
           </div>
