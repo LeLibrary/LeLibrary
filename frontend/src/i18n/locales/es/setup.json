@@ -1962,6 +1962,8 @@
     "The two passwords do not match.": "Las dos contraseñas no coinciden.",
     "Too many attempts. Try again in about {{minutes}} min.": "Demasiados intentos. Vuelve a intentarlo en unos {{minutes}} min.",
     "Could not send the request. Try again.": "No se pudo enviar la solicitud. Inténtalo de nuevo.",
-    "Could not use that code. Try again.": "No se pudo usar ese código. Inténtalo de nuevo."
+    "Could not use that code. Try again.": "No se pudo usar ese código. Inténtalo de nuevo.",
+    "There is no email on file. Prove the setup is yours with your install link and one saved API key, then confirm in the LeLibrary Discord server to get a one-time code.": "No guardamos ningún correo. Demuestra que la configuración es tuya con tu enlace de instalación y una clave de API guardada, y luego confirma en el servidor de Discord de LeLibrary para recibir un código de un solo uso.",
+    "A one-time code then arrives in your Discord DMs within about a minute. It is valid for 15 minutes and works once.": "Después recibirás un código de un solo uso por mensaje directo de Discord en aproximadamente un minuto. Es válido durante 15 minutos y solo funciona una vez."
   }
 }

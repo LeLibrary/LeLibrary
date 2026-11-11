@@ -9,6 +9,8 @@ export type ResetAction = 'reset' | 'delete';
 export interface ResetConfig {
   enabled: boolean;
   siteKey: string;
+  // The operator must approve every request by hand (default: false).
+  requiresApproval: boolean;
 }
 
 export type ResetStatusName =
@@ -40,7 +42,7 @@ export function isTerminalStatus(status: ResetStatusName): boolean {
 export function normalizeResetConfig(payload: unknown): ResetConfig {
   const record = (payload ?? {}) as Record<string, unknown>;
   const siteKey = typeof record['siteKey'] === 'string' ? record['siteKey'].trim() : '';
-  return { enabled: record['enabled'] === true, siteKey };
+  return { enabled: record['enabled'] === true, siteKey, requiresApproval: record['requiresApproval'] === true };
 }
 
 export function normalizeResetStatus(payload: unknown): ResetStatus {
@@ -59,7 +61,7 @@ export async function fetchResetConfig(signal?: AbortSignal): Promise<ResetConfi
     return normalizeResetConfig(await apiClient.get<unknown>('/api/reset/config', signal ? { signal } : {}));
   } catch {
     // An older server without the route: the feature is simply off.
-    return { enabled: false, siteKey: '' };
+    return { enabled: false, siteKey: '', requiresApproval: false };
   }
 }
 

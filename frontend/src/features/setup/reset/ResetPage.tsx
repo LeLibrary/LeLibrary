@@ -53,7 +53,7 @@ export function ResetPage() {
           <Link className="setup-secondary reset-link-button" to={hint ? `/${hint}` : '/configure'}>Back</Link>
         </div>
       )}
-      {data?.enabled && <ResetFlow siteKey={data.siteKey} hint={hint} />}
+      {data?.enabled && <ResetFlow siteKey={data.siteKey} hint={hint} requiresApproval={data.requiresApproval} />}
     </div>
   );
 }
@@ -64,7 +64,7 @@ type Stage =
   | { name: 'track'; request: Tracked }
   | { name: 'done'; action: ResetAction };
 
-export function ResetFlow({ siteKey, hint }: { siteKey: string; hint: string | null }) {
+export function ResetFlow({ siteKey, hint, requiresApproval }: { siteKey: string; hint: string | null; requiresApproval: boolean }) {
   const [stage, setStage] = useState<Stage>({ name: 'form' });
   // The setup the person is working on, when the page or the link told us.
   const [setupId, setSetupId] = useState<string | null>(hint);
@@ -72,7 +72,7 @@ export function ResetFlow({ siteKey, hint }: { siteKey: string; hint: string | n
   if (stage.name === 'form') {
     return (
       <RequestForm
-        siteKey={siteKey} hint={hint}
+        siteKey={siteKey} hint={hint} requiresApproval={requiresApproval}
         onRequested={(request, id) => { if (id) setSetupId(id); setStage({ name: 'track', request }); }}
       />
     );
@@ -80,7 +80,7 @@ export function ResetFlow({ siteKey, hint }: { siteKey: string; hint: string | n
   if (stage.name === 'track') {
     return (
       <TrackRequest
-        request={stage.request}
+        request={stage.request} requiresApproval={requiresApproval}
         onRedeemed={(action) => setStage({ name: 'done', action })}
         onRestart={() => setStage({ name: 'form' })}
       />
@@ -89,8 +89,9 @@ export function ResetFlow({ siteKey, hint }: { siteKey: string; hint: string | n
   return <Finished action={stage.action} setupId={setupId} />;
 }
 
-function RequestForm({ siteKey, hint, onRequested }: {
+function RequestForm({ siteKey, hint, requiresApproval, onRequested }: {
   siteKey: string;
+  requiresApproval: boolean;
   hint: string | null;
   onRequested: (request: Tracked, setupId: string | null) => void;
 }) {
@@ -126,7 +127,9 @@ function RequestForm({ siteKey, hint, onRequested }: {
   return (
     <form className="reset-card" onSubmit={(event) => void submit(event)}>
       <p className="setup-lede">
-        There is no email on file, so a person checks every request. Prove the setup is yours, then ask for a one-time code in the LeLibrary Discord server.
+        {requiresApproval
+          ? 'There is no email on file, so a person checks every request. Prove the setup is yours, then ask for a one-time code in the LeLibrary Discord server.'
+          : 'There is no email on file. Prove the setup is yours with your install link and one saved API key, then confirm in the LeLibrary Discord server to get a one-time code.'}
       </p>
       <fieldset className="reset-choice">
         <legend>What do you need?</legend>
@@ -168,8 +171,9 @@ function RequestForm({ siteKey, hint, onRequested }: {
   );
 }
 
-export function TrackRequest({ request, onRedeemed, onRestart }: {
+export function TrackRequest({ request, requiresApproval = false, onRedeemed, onRestart }: {
   request: Tracked;
+  requiresApproval?: boolean;
   onRedeemed: (action: ResetAction) => void;
   onRestart: () => void;
 }) {
@@ -225,7 +229,9 @@ export function TrackRequest({ request, onRedeemed, onRestart }: {
       </div>
       <ol className="reset-steps">
         <li>Open the LeLibrary Discord server, run the /reset command and paste the request id. The id can be linked for 30 minutes.</li>
-        <li>The operator approves the request. A one-time code then arrives in your Discord DMs within about a minute, valid for 15 minutes.</li>
+        <li>{requiresApproval
+          ? 'The operator approves the request. A one-time code then arrives in your Discord DMs within about a minute, valid for 15 minutes.'
+          : 'A one-time code then arrives in your Discord DMs within about a minute. It is valid for 15 minutes and works once.'}</li>
         <li>Enter the code below.</li>
       </ol>
       <p className={`reset-status is-${name}`} aria-live="polite">{STATUS_COPY[name]}</p>

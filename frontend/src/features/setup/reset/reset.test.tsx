@@ -25,7 +25,7 @@ const { queryKeys } = await import('@/api/query-keys');
 
 const UUID = '11111111-2222-3333-4444-555555555555';
 
-function render(node: ReactNode, config?: { enabled: boolean; siteKey: string }, url = '/reset') {
+function render(node: ReactNode, config?: { enabled: boolean; siteKey: string; requiresApproval: boolean }, url = '/reset') {
   const client = new QueryClient();
   if (config) client.setQueryData(queryKeys.resetConfig, config);
   return renderToStaticMarkup(
@@ -39,13 +39,13 @@ afterEach(() => { vi.clearAllMocks(); });
 
 describe('config gate', () => {
   it('disabled: the unlock modal shows the old note and no link', () => {
-    const html = render(<UnlockRecovery uuid={UUID} />, { enabled: false, siteKey: '' });
+    const html = render(<UnlockRecovery uuid={UUID} />, { enabled: false, siteKey: '', requiresApproval: false });
     expect(html).toContain('No email, no recovery');
     expect(html).not.toContain('Forgot your password?');
   });
 
   it('enabled: the unlock modal links to /reset with the setup id', () => {
-    const html = render(<UnlockRecovery uuid={UUID} />, { enabled: true, siteKey: '' });
+    const html = render(<UnlockRecovery uuid={UUID} />, { enabled: true, siteKey: '', requiresApproval: false });
     expect(html).toContain('Forgot your password?');
     expect(html).toContain(`href="/reset?setup=${UUID}"`);
     expect(html).not.toContain('No email, no recovery');
@@ -57,18 +57,18 @@ describe('config gate', () => {
 
   it('an older server without the route counts as disabled', async () => {
     api.get.mockRejectedValueOnce(new ApiError('Not found', 404, null));
-    await expect(reset.fetchResetConfig()).resolves.toEqual({ enabled: false, siteKey: '' });
+    await expect(reset.fetchResetConfig()).resolves.toEqual({ enabled: false, siteKey: '', requiresApproval: false });
   });
 
   it('the page offers no form when the feature is off', () => {
-    const html = render(<ResetPage />, { enabled: false, siteKey: '' });
+    const html = render(<ResetPage />, { enabled: false, siteKey: '', requiresApproval: false });
     expect(html).toContain('Password reset is not available on this server.');
     expect(html).not.toContain('type="password"');
   });
 });
 
 describe('step 1 form', () => {
-  const html = render(<ResetPage />, { enabled: true, siteKey: '' }, `/reset?setup=${UUID}`);
+  const html = render(<ResetPage />, { enabled: true, siteKey: '', requiresApproval: false }, `/reset?setup=${UUID}`);
 
   it('offers both actions, the id hint, and masked non-autofilled fields', () => {
     expect(html).toContain('Reset my password');
@@ -86,7 +86,7 @@ describe('step 1 form', () => {
   });
 
   it('ignores a malformed ?setup= hint', () => {
-    expect(render(<ResetPage />, { enabled: true, siteKey: '' }, '/reset?setup=nope')).not.toContain('Setup id');
+    expect(render(<ResetPage />, { enabled: true, siteKey: '', requiresApproval: false }, '/reset?setup=nope')).not.toContain('Setup id');
   });
 });
 
@@ -136,6 +136,27 @@ describe('step 2 and 3', () => {
     expect(html).toContain('15 minutes');
     expect(html).toContain('Waiting for you to send the request id in Discord.');
     expect(html).toContain('One-time code');
+  });
+
+  it('default mode: no review wording anywhere on the page', () => {
+    const track = render(<TrackRequest request={{ requestId: 'ABCD-1234', action: 'reset' }} onRedeemed={() => {}} onRestart={() => {}} />);
+    expect(track).toContain('works once');
+    expect(track).not.toMatch(/operator approves|reviewed|approve/i);
+    const form = render(<ResetPage />, { enabled: true, siteKey: '', requiresApproval: false });
+    expect(form).not.toContain('a person checks every request');
+    expect(form).toContain('confirm in the LeLibrary Discord server');
+  });
+
+  it('approval mode keeps the hand-review wording', () => {
+    const track = render(<TrackRequest requiresApproval request={{ requestId: 'ABCD-1234', action: 'reset' }} onRedeemed={() => {}} onRestart={() => {}} />);
+    expect(track).toContain('The operator approves the request');
+    const form = render(<ResetPage />, { enabled: true, siteKey: '', requiresApproval: true });
+    expect(form).toContain('a person checks every request');
+  });
+
+  it('config reads requiresApproval, default false', () => {
+    expect(reset.normalizeResetConfig({ enabled: true, siteKey: 'k' }).requiresApproval).toBe(false);
+    expect(reset.normalizeResetConfig({ enabled: true, requiresApproval: true }).requiresApproval).toBe(true);
   });
 
   it('reset form asks for a new password twice and never mentions a bot password', () => {
@@ -216,7 +237,7 @@ describe('secrets stay out of storage', () => {
     vi.stubGlobal('localStorage', storage);
     vi.stubGlobal('sessionStorage', storage);
     api.post.mockResolvedValue({ requestId: 'ABCD-1234', expiresAt: '', action: 'reset' });
-    render(<ResetPage />, { enabled: true, siteKey: '' });
+    render(<ResetPage />, { enabled: true, siteKey: '', requiresApproval: false });
     await reset.requestReset({ installToken: `${UUID}.secret`, key: 'secret-key', action: 'reset' });
     expect(storage.setItem).not.toHaveBeenCalled();
     expect(storage.getItem).not.toHaveBeenCalled();
