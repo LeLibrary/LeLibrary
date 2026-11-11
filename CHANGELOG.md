@@ -20,6 +20,24 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - TorBox sources now look like proper cards (Torrents, Usenet, Web downloads), and Use Main Metadata says plainly that turning it on lets your library rows bring through streams you have enabled, so leave it off if you only want your own files.
 - Nuvio now lists far fewer LeLibrary catalogues. Collection folders already shared one catalogue, but every pack source was still listed on its own as a hidden row, so a setup with packs showed well over a hundred catalogues in Nuvio. Only the rows you actually picked for Home are listed now. Push again or restart Nuvio to see the smaller list.
 
+### Jellyfin
+
+The Jellyfin plugin (Jellyfin 12 only) is now a real library, not just a working one. It is still installed from its own repository, and LeLibrary still never sees your debrid key or a byte of playback.
+
+- **LeLibrary serves the metadata itself.** A new read-only endpoint, `/{uuid}.{secret}/jellyfin/metadata.json`, answers with one entry per title, episodes nested under their show: overview, runtime, genres, rating, vote count, certification, release date, poster, backdrop, and for episodes the title, synopsis, runtime, air date and still. It is the same install-token model as the plan: the URL is the read capability and nothing in the answer is a key. Because we send it, the library no longer depends on Jellyfin's own TMDb or TVDB plugins being installed and keyed.
+- **The plugin stands Jellyfin's own providers down for its libraries**, so TMDb does not overwrite what LeLibrary knows. An entry you change yourself in Jellyfin's metadata settings is left alone.
+- **Episode titles come from the library, not the release name.** Episodes are named from the library's own episode data, so they stop being "Episode N". The numbering a release uses is not always the numbering the metadata provider uses, so a minority of episodes keep the name they had.
+- **Artwork** — posters, backdrops and episode stills — is handed to Jellyfin as addresses and downloaded once, by Jellyfin, the first time something asks for it. The plugin never downloads an image.
+- **The three playback bugs are fixed** in the same release (plugin 0.1.9):
+  - Playback no longer fails with "Failed to find an appropriate file extension" after a resync. The container is now the real file's, and a resync keeps it.
+  - Removing one episode of a show no longer removes the show. Every kind of item has its own identity, so a series is no longer identified by one of its episodes.
+  - Changing the Server URL no longer duplicates the library or orphans watch history. Item ids come from what the item is, not from the address it is served at. A library that already doubled is cleaned up on the next sync, keeping the copy that carries the watch history.
+- A file that covers several episodes now creates every episode, each playing the one file.
+- A plan that came from the cache removes nothing: only a plan fetched fresh, against a complete provider listing, can delete.
+- The Debrid provider setting is honoured. TorBox is the provider the plugin talks to; the other three are listed as not supported yet instead of silently using TorBox.
+- Newly captured for this: the TMDB fill keeps the overview and the backdrop it was already fetching and throwing away, and the identity resolver keeps an episode's image. Existing libraries pick them up on the next sync after the fill has re-read the titles, so overviews and backdrops appear over the first day or two rather than all at once.
+- Known limits: embedded subtitles work, sidecar subtitle files are not written; box sets are not created; files with no season or episode in their name are skipped rather than guessed.
+
 ### Changes
 
 - The Docker image now lives at `ghcr.io/lelibrary/lelibrary`, because the project moved to its own GitHub organisation. An existing `compose.yml` that still points at `ghcr.io/leleasley/lelibrary` keeps working, but it stops receiving new versions: change the `image:` line once.
@@ -58,3 +76,4 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 ### Upgrading
 
 - Nothing to do for most people. After updating, the first page loads can be a little slower while caches rebuild, and Nuvio shows the shorter catalogue list after your next push or a restart of the app.
+- Jellyfin: install or update the plugin (0.1.9) from its repository, then press Run sync now once. The first sync after the update re-keys existing items without recreating them, cleans up a library that doubled when the Server URL changed, and refreshes every title so the metadata lands. Watch history stays attached.
