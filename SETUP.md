@@ -688,16 +688,27 @@ It only appears when `SELFHOST_CONFIGS_SECRET` is set and
 `.env`.
 
 **I forgot the password.**
-There is no reset: the password only gates editing, and it is stored hashed.
-The install link still works for watching.
+The password only gates editing and is stored hashed, so nobody can read it
+back. On the hosted site you can set a new one, or have the setup deleted:
 
-To have the setup deleted, message us on Discord
-(https://discord.gg/E3XbsmuQ9E) with the setup id or the install link. Do not
-post either in a public channel: send it as a direct message. We delete the
-setup, its saved keys and its indexed library, and the install link stops
-working.
+1. On the password prompt, choose **Forgot your password?** (or open `/reset`).
+2. Enter your install link and one of the API keys saved in the setup (for
+   example your TorBox or Real-Debrid key). Both are checked on the server and
+   never sent to Discord. Someone who only has your install link cannot pass
+   this step.
+3. You get a request id. In the LeLibrary Discord server, run `/reset` and
+   paste it. The request is reviewed by hand.
+4. After approval the bot sends you a one-time code by direct message (allow
+   DMs from server members). It arrives within about a minute and works for 15
+   minutes, once.
+5. Enter the code on the site and choose your own new password (or confirm the
+   deletion). Every other signed-in editor is signed out. Your install link
+   keeps working.
 
-Do not send your debrid key. We never need it.
+Nobody ever sends you a password, and you should never post your key, your
+install link or the code in a channel. If the setup has no saved API key, or
+this feature is not available on your instance, message us on Discord as a
+direct message and we will delete the setup on request.
 
 **My library is empty.**
 Check the provider key and that the downloads exist on the provider. Use

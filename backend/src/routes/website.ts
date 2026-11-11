@@ -629,6 +629,13 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
   });
   router.get('/about', (req: Request, res: Response) => res.redirect(301, '/supporters'));
 
+  // Forgotten password / delete my setup. The client router owns the page
+  // (it hides itself when the instance has the feature off).
+  router.get('/reset', (req: Request, res: Response) => {
+    if (serveShell(res)) return;
+    return res.redirect('/');
+  });
+
   // Configure with injected config (from Stremio addon)
   router.get('/:token/configure', async (req: Request, res: Response) => {
     // A v5.5 setup is edited at its own UUID (password gate, tier surface);
