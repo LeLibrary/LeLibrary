@@ -688,9 +688,16 @@ It only appears when `SELFHOST_CONFIGS_SECRET` is set and
 `.env`.
 
 **I forgot the password.**
-There is no reset. The install link still works for watching. Create a new
-setup and delete the old one from its edit page (the password is required to
-delete too), or remove the row from Postgres.
+There is no reset: the password only gates editing, and it is stored hashed.
+The install link still works for watching.
+
+To have the setup deleted, message us on Discord
+(https://discord.gg/E3XbsmuQ9E) with the setup id or the install link. Do not
+post either in a public channel: send it as a direct message. We delete the
+setup, its saved keys and its indexed library, and the install link stops
+working.
+
+Do not send your debrid key. We never need it.
 
 **My library is empty.**
 Check the provider key and that the downloads exist on the provider. Use
