@@ -824,6 +824,37 @@ async function catalogRows(scopeId, mediaType, provider = null) {
   return rows;
 }
 
+// The metadata projection for the Jellyfin plugin: one row per (title,
+// episode) for the titles this setup's library holds. The identity carries
+// the title, the TMDB facts carry what TMDB knows about it, and the episode
+// rows carry the episodes.
+async function metadataRows(scopeId) {
+  const pool = db.getPool();
+  if (!pool) return [];
+  const { rows } = await pool.query(
+    `WITH scope_titles AS (
+       SELECT DISTINCT entity_key FROM lib_items
+        WHERE scope_id = $1 AND removed_at IS NULL AND match_status = 'matched'
+          AND entity_key IS NOT NULL
+     )
+     SELECT i.entity_key, i.media_type, i.tmdb_id, i.imdb_id, i.tvdb_id,
+            i.title, i.year, i.poster, i.logo, i.genres, i.metadata,
+            g.genre_ids, g.overview, g.runtime, g.vote_average, g.vote_count,
+            g.certification, g.release_date, g.backdrop_path,
+            e.season, e.episode, e.title AS episode_title, e.overview AS episode_overview,
+            e.runtime AS episode_runtime, e.air_date, e.image
+       FROM scope_titles s
+       JOIN lib_identities i ON i.entity_key = s.entity_key
+       LEFT JOIN lib_tmdb_genres g
+         ON g.tmdb_id = i.tmdb_id
+        AND g.media_type = CASE WHEN i.media_type = 'movie' THEN 'movie' ELSE 'tv' END
+       LEFT JOIN lib_episodes e ON e.entity_key = i.entity_key
+      ORDER BY i.entity_key, e.season, e.episode`,
+    [scopeId]
+  );
+  return rows;
+}
+
 // When this scope last completed a sync. NULL means no sync has ever finished:
 // a read then must not be served as "the library is empty".
 async function scopeLastSync(scopeId) {
@@ -1154,6 +1185,7 @@ module.exports = {
   saveMatch,
   markMatchSkipped,
   catalogRows,
+  metadataRows,
   scopeLastSync,
   searchRows,
   tmdbItems,
