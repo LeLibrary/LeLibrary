@@ -25,6 +25,9 @@ const { hashShort } = require('../runtime/cache-fingerprint.ts') as { hashShort:
 const { buildPlan } = require('../jellyfin/plan.ts') as {
   buildPlan: (input: any) => { plan: any; skipped: number };
 };
+const { buildMetadata } = require('../jellyfin/metadata.ts') as {
+  buildMetadata: (input: any) => { document: any; skipped: number };
+};
 
 const PLUGIN_LIBRARY_TYPES = ['movie', 'series', 'anime'];
 
@@ -32,6 +35,9 @@ export interface JellyfinRouteDeps {
   resolveConfig: (token: string) => Promise<any>;
   // Injected in tests; production reads the indexed library.
   catalogRows?: (scopeId: string, mediaType: string, provider?: string) => Promise<any[]>;
+  // The per-title projection the metadata document is built from. Also
+  // injected in tests; one row per (title, episode).
+  metadataRows?: (scopeId: string) => Promise<any[]>;
   // When this scope last completed a sync. Null means never: an empty plan
   // would read as "delete everything", so it is a 503 instead.
   scopeSynced?: (scopeId: string) => Promise<unknown>;
@@ -48,6 +54,7 @@ export interface JellyfinRouteDeps {
 export interface JellyfinRoutesApi {
   mountJellyfinRoutes: (app: any, deps: JellyfinRouteDeps) => void;
   planFor: (input: { token: string; config: any; baseUrl: string; deps: JellyfinRouteDeps }) => Promise<any>;
+  metadataFor: (input: { config: any; deps: JellyfinRouteDeps }) => Promise<any>;
 }
 
 function statusError(status: number, message: string): Error {
@@ -59,6 +66,13 @@ function defaultCatalogRows(): (scopeId: string, mediaType: string, provider?: s
     catalogRows: (scopeId: string, mediaType: string, provider?: string) => Promise<any[]>;
   };
   return (scopeId, mediaType, provider) => store.catalogRows(scopeId, mediaType, provider);
+}
+
+function defaultMetadataRows(): (scopeId: string) => Promise<any[]> {
+  const store = require('../library/store.ts') as {
+    metadataRows: (scopeId: string) => Promise<any[]>;
+  };
+  return (scopeId) => store.metadataRows(scopeId);
 }
 
 function defaultScopeSynced(): (scopeId: string) => Promise<unknown> {
@@ -139,6 +153,37 @@ function textOf(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+// The metadata document for one setup: per title, episodes nested under their
+// show. Throws an Error carrying `status` like planFor: 503 when the library
+// cannot be read, so the plugin keeps the metadata it already has rather than
+// seeing an empty document.
+async function metadataFor({ config, deps }: { config: any; deps: JellyfinRouteDeps }): Promise<any> {
+  // An empty document reads as "no metadata" to the plugin, and a reader that
+  // cannot reach the database would produce exactly that. Refuse instead.
+  const injectedReader = typeof deps.metadataRows === 'function';
+  const libraryDb = deps.libraryDb || defaultLibraryDb;
+  if (!injectedReader && !libraryDb()) throw statusError(503, 'library unavailable');
+
+  const scopeId = providers.getUserKey(config);
+  if (!scopeId) throw statusError(409, 'no debrid provider configured');
+
+  const scopeSynced = deps.scopeSynced || defaultScopeSynced();
+  if (!(await scopeSynced(scopeId))) throw statusError(503, 'library unavailable');
+
+  const metadataRows = deps.metadataRows || defaultMetadataRows();
+  let rows: any[];
+  try {
+    rows = await metadataRows(scopeId);
+  } catch (err: any) {
+    throw Object.assign(new Error(err && err.message || 'library read failed'), { status: 503 });
+  }
+
+  const now = deps.now ? deps.now() : Date.now();
+  const { document, skipped } = buildMetadata({ rows, now });
+  if (skipped) console.log(`[Jellyfin] metadata for scope ${hashShort(scopeId)} skipped ${skipped} title(s)`);
+  return document;
+}
+
 // One entry per scope+library state. Bounded: the last three plans only, kept as
 // the serialized body so a conditional request costs a string compare instead of
 // a 12 MB rebuild.
@@ -216,6 +261,45 @@ function mountJellyfinRoutes(app: any, deps: JellyfinRouteDeps): void {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.send(response.body);
   });
+
+  // The metadata document: per title, separate from the plan so a metadata
+  // change never invalidates the 13 MB plan and a plan change never
+  // invalidates the metadata. Same read capability, same statuses.
+  app.get('/:token/jellyfin/metadata.json', async (req: Request, res: Response) => {
+    const token = String((req.params as any).token || '');
+    let config: any = null;
+    try {
+      config = await deps.resolveConfig(token);
+    } catch {
+      config = null;
+    }
+    if (!config) { res.status(400).json({ success: false, error: 'invalid token' }); return; }
+
+    let response: { etag: string; body: string };
+    try {
+      const document = await metadataFor({ config, deps });
+      // Fingerprint everything except the timestamp, so a 304 stays valid
+      // while the body still reports when it was built.
+      const etag = `"${hashShort(JSON.stringify({ ...document, generatedAt: '' }))}"`;
+      response = { etag, body: JSON.stringify(document) };
+    } catch (err: any) {
+      const status = err && (err.status === 409 || err.status === 503) ? err.status : 500;
+      if (status === 500) console.error('[Jellyfin] metadata failed:', err && err.message);
+      res.status(status).json({
+        success: false,
+        error: status === 409 ? 'no debrid provider configured'
+          : status === 503 ? 'library unavailable'
+            : 'could not build the metadata',
+      });
+      return;
+    }
+
+    res.setHeader('ETag', response.etag);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    if (isNotModified(req.headers['if-none-match'], response.etag)) { res.status(304).end(); return; }
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.send(response.body);
+  });
 }
 
 // Weak comparison, comma lists and `*` are all legal If-None-Match forms and a
@@ -228,4 +312,4 @@ function isNotModified(header: unknown, etag: string): boolean {
   return value.split(',').some((tag) => strip(tag) === strip(etag));
 }
 
-module.exports = { mountJellyfinRoutes, planFor } satisfies JellyfinRoutesApi;
+module.exports = { mountJellyfinRoutes, planFor, metadataFor } satisfies JellyfinRoutesApi;

@@ -256,3 +256,109 @@ test('a changed library fingerprint rebuilds the plan', async () => {
     assert.equal(reads, 6);
   } finally { s.close(); }
 });
+
+// ── the metadata route ──────────────────────────────────────────────────
+// GET /{uuid}.{secret}/jellyfin/metadata.json - the per-title document the
+// plugin applies as Jellyfin metadata. Same capability model as the plan.
+
+const metadataRow = {
+  entity_key: 'movie:603', media_type: 'movie', tmdb_id: 603, imdb_id: 'tt0133093',
+  title: 'The Matrix', year: 1999, poster: 'https://image.tmdb.org/t/p/w500/p.jpg',
+  logo: null, genres: ['Action'], metadata: {},
+  genre_ids: [28, 878], overview: 'A computer hacker learns ...', runtime: 136,
+  vote_average: 8.2, vote_count: 24000, certification: 'R',
+  release_date: '1999-03-30', backdrop_path: '/b.jpg',
+  season: null, episode: null, episode_title: null, episode_overview: null,
+  episode_runtime: null, air_date: null, image: null,
+};
+
+function metadataAppWith(config: any, rows: any[], extra: any = {}) {
+  return appWith(config, { movie: [], series: [], anime: [] }, {
+    metadataRows: async () => rows,
+    ...extra,
+  });
+}
+
+test('the metadata route returns a document with an ETag and no keys', async () => {
+  const s = await server(metadataAppWith({ provider: 'torbox', torboxApiKey: 'SUPERSECRET' }, [metadataRow]));
+  try {
+    const res = await s.get('/abc.def/jellyfin/metadata.json');
+    assert.equal(res.status, 200);
+    assert.match(res.headers.etag, /^"[a-f0-9]{24}"$/);
+    assert.equal(res.body.includes('SUPERSECRET'), false);
+    const doc = JSON.parse(res.body);
+    assert.equal(doc.schemaVersion, 1);
+    assert.equal(doc.titles['movie:603'].overview, 'A computer hacker learns ...');
+    assert.equal(doc.titles['movie:603'].backdrop, 'https://image.tmdb.org/t/p/w1280/b.jpg');
+  } finally { s.close(); }
+});
+
+test('the metadata route answers 304 for a matching If-None-Match', async () => {
+  const s = await server(metadataAppWith({ provider: 'torbox', torboxApiKey: 'k' }, [metadataRow]));
+  try {
+    const first = await s.get('/abc.def/jellyfin/metadata.json');
+    const second = await s.get('/abc.def/jellyfin/metadata.json', { 'if-none-match': first.headers.etag });
+    assert.equal(second.status, 304);
+    assert.equal(second.body, '');
+  } finally { s.close(); }
+});
+
+test('the metadata ETag does not change just because time passed', async () => {
+  let now = 1_700_000_000_000;
+  const s = await server(metadataAppWith({ provider: 'torbox', torboxApiKey: 'k' }, [metadataRow], { now: () => now }));
+  try {
+    const first = await s.get('/abc.def/jellyfin/metadata.json');
+    now += 3_600_000;
+    const second = await s.get('/abc.def/jellyfin/metadata.json');
+    assert.equal(first.headers.etag, second.headers.etag);
+    assert.notEqual(JSON.parse(first.body).generatedAt, JSON.parse(second.body).generatedAt);
+  } finally { s.close(); }
+});
+
+test('the metadata route answers 400 for an unknown token', async () => {
+  const app = express();
+  mountJellyfinRoutes(app, {
+    resolveConfig: async () => null,
+    catalogRows: async () => [],
+    metadataRows: async () => [],
+  } as any);
+  const s = await server(app);
+  try {
+    const res = await s.get('/nope/jellyfin/metadata.json');
+    assert.equal(res.status, 400);
+  } finally { s.close(); }
+});
+
+test('the metadata route answers 503 when the library has never synced', async () => {
+  const s = await server(metadataAppWith({ provider: 'torbox', torboxApiKey: 'k' }, [], { scopeSynced: async () => null }));
+  try {
+    const res = await s.get('/abc.def/jellyfin/metadata.json');
+    assert.equal(res.status, 503);
+  } finally { s.close(); }
+});
+
+test('the metadata route is a 503, not an empty document, when the read fails', async () => {
+  const s = await server(metadataAppWith({ provider: 'torbox', torboxApiKey: 'k' }, [], {
+    metadataRows: async () => { throw new Error('no db'); },
+  }));
+  try {
+    const res = await s.get('/abc.def/jellyfin/metadata.json');
+    assert.equal(res.status, 503);
+  } finally { s.close(); }
+});
+
+test('the plan and the metadata have different ETags', async () => {
+  const app = express();
+  mountJellyfinRoutes(app, {
+    resolveConfig: async () => ({ provider: 'torbox', torboxApiKey: 'k' }),
+    catalogRows: async (_scope: string, type: string) => (type === 'movie' ? [movieRow] : []),
+    metadataRows: async () => [metadataRow],
+    scopeSynced: async () => new Date(),
+  } as any);
+  const s = await server(app);
+  try {
+    const plan = await s.get('/abc.def/jellyfin/config.json');
+    const metadata = await s.get('/abc.def/jellyfin/metadata.json');
+    assert.notEqual(plan.headers.etag, metadata.headers.etag);
+  } finally { s.close(); }
+});
