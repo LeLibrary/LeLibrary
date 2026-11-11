@@ -256,3 +256,31 @@ test('an erdb setup gets proxied posters and the erdb key never appears', () => 
   assert.equal(plan.items[0].poster, 'https://l.uk/abc.def/erdb/poster/tmdb:movie:603');
   assert.equal(JSON.stringify(plan).includes('ERDBSECRET'), false);
 });
+
+test('an episode carries its real title', () => {
+  const meta = {
+    id: 'tt3230854', tmdbId: 63639, imdbId: 'tt3230854', name: 'The Expanse', year: 2015,
+    catalogType: 'series', poster: 'https://img/p.jpg', season: 1, episode: 3,
+    entity_key: 'series:63639', episodeTitle: 'Remember the Cant',
+    torboxItems: [{
+      item: {
+        source: 'torrent', id: 77, name: 'The Expanse S01 2160p',
+        files: [{ id: 2, name: 'The.Expanse.S01E03.mkv', size: 3e9 }],
+      },
+      season: 1, episode: 3,
+    }],
+  };
+  const { plan } = buildPlan({ provider: 'torbox', baseUrl: 'https://l.uk/abc.def', metas: [meta] });
+  const episode = plan.items.find((i: any) => i.kind === 'episode');
+  assert.equal(episode.episodeTitle, 'Remember the Cant');
+});
+
+test('the row the store joins carries its episode title into the meta', () => {
+  const { rowToMeta } = require('../src/library/catalog.ts');
+  const meta = rowToMeta({
+    match_meta: { name: 'The Expanse', catalogType: 'series', tmdbId: 63639, season: 1, episode: 3 },
+    tmdb_id: 63639, media_type: 'series', raw: { id: 1 },
+    episode_title: 'Remember the Cant',
+  });
+  assert.equal(meta.episodeTitle, 'Remember the Cant');
+});

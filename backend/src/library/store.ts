@@ -805,20 +805,28 @@ async function markMatchSkipped(scopeId) {
 const ROW_COLUMNS = `id, provider, source_id, name, norm_title, media_type, season, episode,
             season_start, season_end, episode_end, size, source_created_at, source_updated_at,
             raw, match_meta, tmdb_id, imdb_id, entity_key, identity_status, search_alt, first_seen_at`;
+// The same columns, qualified: a query that joins lib_episodes would otherwise
+// be ambiguous on "provider" (and on anything else both tables carry).
+const ITEM_COLUMNS = ROW_COLUMNS.split(',').map((column) => `lib_items.${column.trim()}`).join(', ');
 
 async function catalogRows(scopeId, mediaType, provider = null) {
   const pool = db.getPool();
   if (!pool) return [];
   const params = [scopeId, mediaType];
   let providerFilter = '';
-  if (provider) { params.push(provider); providerFilter = `AND provider = $${params.length}`; }
+  if (provider) { params.push(provider); providerFilter = `AND lib_items.provider = $${params.length}`; }
   const { rows } = await pool.query(
-    `SELECT ${ROW_COLUMNS}
+    `SELECT ${ITEM_COLUMNS}, e.title AS episode_title
        FROM lib_items
-      WHERE scope_id = $1 AND media_type = $2 AND removed_at IS NULL AND match_status = 'matched'
-        AND match_meta IS NOT NULL
+       LEFT JOIN lib_episodes e
+         ON e.entity_key = lib_items.entity_key
+        AND e.season  = CASE WHEN lib_items.match_meta->>'season'  ~ '^[0-9]+$' THEN (lib_items.match_meta->>'season')::int  END
+        AND e.episode = CASE WHEN lib_items.match_meta->>'episode' ~ '^[0-9]+$' THEN (lib_items.match_meta->>'episode')::int END
+      WHERE lib_items.scope_id = $1 AND lib_items.media_type = $2
+        AND lib_items.removed_at IS NULL AND lib_items.match_status = 'matched'
+        AND lib_items.match_meta IS NOT NULL
         ${providerFilter}
-      ORDER BY first_seen_at ASC`,
+      ORDER BY lib_items.first_seen_at ASC`,
     params
   );
   return rows;

@@ -32,6 +32,9 @@ function rowToMeta(row) {
     episode: match.episode != null ? match.episode : row.episode,
     episodeEnd: match.episodeEnd != null ? match.episodeEnd : row.episode_end,
     imdbId: row.imdb_id || match.imdbId || undefined,
+    // The episode's real title, joined from the episode rows by the store.
+    // match.episodeTitle is the release's own guess and only 26 rows have one.
+    episodeTitle: row.episode_title || match.episodeTitle || null,
     torboxItem: row.raw,
   };
   // Date-based releases (weekly shows) have no season/episode. Expose the air
