@@ -223,11 +223,18 @@ const MIGRATIONS = [
      air_date    date,
      runtime     integer,
      overview    text,
+     image       text,
      ids         jsonb NOT NULL DEFAULT '{}',
      provider    text,
      updated_at  timestamptz NOT NULL DEFAULT now(),
      PRIMARY KEY (entity_key, season, episode)
    )`,
+  // The episode still and the title's overview and backdrop, for the Jellyfin
+  // metadata route. Additive: the rows that lack them are refilled by the
+  // background facts fill and by the next resolve.
+  `ALTER TABLE lib_episodes ADD COLUMN IF NOT EXISTS image text`,
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS overview text`,
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS backdrop_path text`,
   // Vacuum/analyze frequently updated library rows before dead tuples and
   // stale planner stats accumulate. Defaults wait for ~20% table churn.
   `ALTER TABLE lib_items SET (

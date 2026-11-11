@@ -997,18 +997,19 @@ async function replaceEpisodes(entityKey, episodes) {
     const params = [entityKey];
     let p = 2;
     for (const e of chunk) {
-      tuples.push(`($1,$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++}::jsonb)`);
+      tuples.push(`($1,$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++}::jsonb)`);
       params.push(
         e.season ?? 1, e.episode, e.absolute ?? null, e.title || null,
-        toTimestamp(e.airDate), e.runtime ?? null, e.overview || null, JSON.stringify(e.ids || {})
+        toTimestamp(e.airDate), e.runtime ?? null, e.overview || null, e.image || null, JSON.stringify(e.ids || {})
       );
     }
     await pool.query(
-      `INSERT INTO lib_episodes (entity_key, season, episode, absolute, title, air_date, runtime, overview, ids)
+      `INSERT INTO lib_episodes (entity_key, season, episode, absolute, title, air_date, runtime, overview, image, ids)
        VALUES ${tuples.join(',')}
        ON CONFLICT (entity_key, season, episode) DO UPDATE SET
          absolute = EXCLUDED.absolute, title = EXCLUDED.title, air_date = EXCLUDED.air_date,
-         runtime = EXCLUDED.runtime, overview = EXCLUDED.overview, ids = EXCLUDED.ids, updated_at = now()`,
+         runtime = EXCLUDED.runtime, overview = EXCLUDED.overview, image = EXCLUDED.image,
+         ids = EXCLUDED.ids, updated_at = now()`,
       params
     );
   }

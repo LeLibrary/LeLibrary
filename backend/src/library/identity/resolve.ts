@@ -111,6 +111,7 @@ async function animeEpisodes(kitsuId, ids) {
         airDate: ep.airdate || null,
         runtime: ep.length ?? null,
         overview: ep.synopsis || null,
+        image: ep.image ?? null,
         ids: { kitsu: ep.id, ...(ids.anilistId ? { anilist: ids.anilistId } : {}) },
       });
     }

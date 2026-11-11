@@ -264,7 +264,8 @@ const FILM_RECENT_REFRESH_DAYS = 30;
 // read from the same TMDB reply: every title is then read once more.
 //   1  dates (New Releases)
 //   2  vote average/count, runtime, UK certification (Hub shelves)
-const FACTS_VERSION = 2;
+//   3  overview and backdrop (the Jellyfin metadata route)
+const FACTS_VERSION = 3;
 
 // Titles in this library without facts yet, or stored before keywords,
 // language, the adult flag, the certification or the dates were kept (NULL =
@@ -306,11 +307,19 @@ type Facts = {
   // Hub shelves: TMDB vote average (0-10) and count, film runtime in minutes
   // (null for shows and unknown runtimes) and the UK certification.
   voteAverage: number | null; voteCount: number | null; runtime: number | null; certificationGb: string | null;
+  // The Jellyfin metadata route: the title's synopsis and TMDB's backdrop
+  // path. Both are in the same reply as everything above.
+  overview: string | null; backdropPath: string | null;
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 function isoDate(value: unknown): string | null {
   return typeof value === 'string' && ISO_DATE.test(value) ? value : null;
+}
+
+// A text field that is there or is not: an empty string is not an overview.
+function textOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 // The dates New Releases needs, off the same TMDB details reply. A show's
@@ -384,6 +393,8 @@ async function fetchFacts(apiKey: string, apiType: 'movie' | 'tv', tmdbId: numbe
       ...datesFrom(apiType, data),
       ...shelfFactsFrom(apiType, data),
       certificationGb: certificationFrom(apiType, data, 'GB'),
+      overview: textOrNull(data.overview),
+      backdropPath: textOrNull(data.backdrop_path),
     };
   } catch (err: any) {
     const status = Number(err?.response?.status) || 0;
@@ -393,6 +404,7 @@ async function fetchFacts(apiKey: string, apiType: 'movie' | 'tv', tmdbId: numbe
       return {
         genreIds: [], keywordIds: [], lang: null, adult: false, certification: null, releaseDate: null, lastAirDate: null, inProduction: false,
         voteAverage: null, voteCount: null, runtime: null, certificationGb: null,
+        overview: null, backdropPath: null,
       };
     }
     return null; // try again on a later pass
@@ -425,8 +437,9 @@ async function fillForScope(scopeId: string, setupKey: string | null | undefined
       await pool.query(
         `INSERT INTO lib_tmdb_genres (media_type, tmdb_id, genre_ids, keyword_ids, orig_lang, adult, certification,
                                       release_date, last_air_date, in_production,
-                                      vote_average, vote_count, runtime, certification_gb, facts_v, dates_at, fetched_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now(), now())
+                                      vote_average, vote_count, runtime, certification_gb, facts_v, dates_at, fetched_at,
+                                      overview, backdrop_path)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now(), now(), $16, $17)
          ON CONFLICT (media_type, tmdb_id) DO UPDATE
            SET genre_ids = EXCLUDED.genre_ids, keyword_ids = EXCLUDED.keyword_ids,
                orig_lang = EXCLUDED.orig_lang, adult = EXCLUDED.adult,
@@ -434,10 +447,12 @@ async function fillForScope(scopeId: string, setupKey: string | null | undefined
                last_air_date = EXCLUDED.last_air_date, in_production = EXCLUDED.in_production,
                vote_average = EXCLUDED.vote_average, vote_count = EXCLUDED.vote_count,
                runtime = EXCLUDED.runtime, certification_gb = EXCLUDED.certification_gb,
-               facts_v = EXCLUDED.facts_v, dates_at = now(), fetched_at = now()`,
+               facts_v = EXCLUDED.facts_v, dates_at = now(), fetched_at = now(),
+               overview = EXCLUDED.overview, backdrop_path = EXCLUDED.backdrop_path`,
         [job.apiType, job.tmdbId, facts.genreIds, facts.keywordIds, facts.lang, facts.adult, facts.certification,
           facts.releaseDate, facts.lastAirDate, facts.inProduction,
-          facts.voteAverage, facts.voteCount, facts.runtime, facts.certificationGb, FACTS_VERSION]
+          facts.voteAverage, facts.voteCount, facts.runtime, facts.certificationGb, FACTS_VERSION,
+          facts.overview, facts.backdropPath]
       );
       filled++;
     }

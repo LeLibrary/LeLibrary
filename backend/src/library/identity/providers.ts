@@ -132,6 +132,23 @@ async function kitsuMappings(id) {
 }
 
 // One page (20) of Kitsu episodes with anime absolute + relative numbering.
+// One Kitsu episode, as the library stores it. The thumbnail is the still
+// the Jellyfin metadata route serves.
+function kitsuEpisodeRecord(row) {
+  const a = row?.attributes || {};
+  return {
+    id: Number(row?.id),
+    number: a.number ?? null,
+    relativeNumber: a.relativeNumber ?? null,
+    seasonNumber: a.seasonNumber ?? null,
+    airdate: a.airdate || null,
+    canonicalTitle: a.canonicalTitle || null,
+    synopsis: a.synopsis || null,
+    length: a.length ?? null,
+    image: a.thumbnail || null,
+  };
+}
+
 async function kitsuAnimeEpisodes(id, offset = 0) {
   const key = `idprov:kitsu:episodes:${id}:${offset}`;
   return cachedGet(key, POS_TTL, async () => {
@@ -139,19 +156,7 @@ async function kitsuAnimeEpisodes(id, offset = 0) {
       headers: KITSU_HEADERS,
       params: { 'page[limit]': 20, 'page[offset]': offset, sort: 'number' },
     });
-    return (data?.data || []).map((row) => {
-      const a = row.attributes || {};
-      return {
-        id: Number(row.id),
-        number: a.number ?? null,
-        relativeNumber: a.relativeNumber ?? null,
-        seasonNumber: a.seasonNumber ?? null,
-        airdate: a.airdate || null,
-        canonicalTitle: a.canonicalTitle || null,
-        synopsis: a.synopsis || null,
-        length: a.length ?? null,
-      };
-    });
+    return (data?.data || []).map(kitsuEpisodeRecord);
   });
 }
 
@@ -354,16 +359,7 @@ async function tvdbSeriesEpisodes(apiKey, tvdbId) {
         : (Array.isArray(data?.data) ? data.data : []);
       for (const ep of rows) {
         if (!ep || ep.number == null) continue;
-        out.push({
-          season: ep.seasonNumber ?? 0,
-          episode: ep.number,
-          absolute: ep.absoluteNumber ?? null,
-          title: ep.name || null,
-          airDate: ep.aired || null,
-          runtime: ep.runtime ?? null,
-          overview: ep.overview || null,
-          ids: { tvdb: ep.id },
-        });
+        out.push(tvdbEpisodeRecord(ep));
       }
       next = data?.links?.next || null;
       if (!Array.isArray(rows) || rows.length === 0) break;
@@ -372,11 +368,29 @@ async function tvdbSeriesEpisodes(apiKey, tvdbId) {
   });
 }
 
+// One TVDB episode, as the library stores it. The image is the still the
+// Jellyfin metadata route serves.
+function tvdbEpisodeRecord(ep) {
+  return {
+    season: ep.seasonNumber ?? 0,
+    episode: ep.number,
+    absolute: ep.absoluteNumber ?? null,
+    title: ep.name || null,
+    airDate: ep.aired || null,
+    runtime: ep.runtime ?? null,
+    overview: ep.overview || null,
+    ids: { tvdb: ep.id },
+    image: ep.image || null,
+  };
+}
+
 function status() {
   return { kitsu: true, anilist: true, mal: true, tvdb: tvdbConfigured(), anidb: false };
 }
 
 export interface ProvidersApi {
+  tvdbEpisodeRecord: any;
+  kitsuEpisodeRecord: any;
   kitsuSearch: any;
   kitsuAnime: any;
   kitsuMappings: any;
@@ -394,6 +408,7 @@ export interface ProvidersApi {
 }
 
 module.exports = {
+  tvdbEpisodeRecord, kitsuEpisodeRecord,
   kitsuSearch, kitsuAnime, kitsuMappings, kitsuAnimeEpisodes,
   anilistSearch, anilistById,
   jikanSearch, jikanById,
