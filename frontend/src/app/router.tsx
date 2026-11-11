@@ -19,6 +19,7 @@ const releasesFallback = <RouteSkeleton variant="releases" />;
 // /status ................... provider status
 // /configure ................ setup picker (Quick / Settle In / Move In)
 // /configure/quick|partial|full  tier setup flows
+// /reset .................... forgot password / delete my setup (Discord-approved)
 // /{uuid} ................... edit an existing setup (password gate)
 export const routes: RouteObject[] = [
   {
@@ -98,6 +99,11 @@ export const routes: RouteObject[] = [
         path: 'configure/full',
         hydrateFallbackElement: setupFallback,
         lazy: withLocale(['setup'], async () => ({ Component: (await import('@/features/setup/full/FullSetupPage')).FullSetupPage })),
+      },
+      {
+        path: 'reset',
+        hydrateFallbackElement: setupFallback,
+        lazy: withLocale(['setup'], async () => ({ Component: (await import('@/features/setup/reset/ResetPage')).ResetPage })),
       },
       {
         path: ':uuid',

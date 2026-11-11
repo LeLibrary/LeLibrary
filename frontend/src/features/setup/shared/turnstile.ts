@@ -35,7 +35,7 @@ export const TURNSTILE_HINT = 'Complete the check above';
 export const TURNSTILE_EXPIRED = 'The check expired. Complete it again.';
 export const TURNSTILE_FAILED = 'The check could not finish. Try again.';
 
-export type TurnstileAction = 'unlock' | 'create-setup';
+export type TurnstileAction = 'unlock' | 'create-setup' | 'reset-request';
 
 let scriptLoading: Promise<boolean> | null = null;
 

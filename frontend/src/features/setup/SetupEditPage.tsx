@@ -21,6 +21,7 @@ import { TurnstileCheck, useTurnstile } from '@/features/setup/shared/TurnstileC
 import { setupCopy, setupCount } from '@/features/setup/shared/setup-copy';
 import { LibraryPanel } from '@/features/setup/library/LibraryPanel';
 import { NuvioPanel } from '@/features/setup/nuvio/NuvioPanel';
+import { UnlockRecovery } from '@/features/setup/reset/ForgotPasswordLink';
 import { PreviewModal } from '@/features/setup/preview/PreviewModal';
 import type { TierPreviewSource } from '@/features/setup/shared/tier/TierPreview';
 import { fetchLibrarySummary } from '@/features/setup/library/library-api';
@@ -118,7 +119,7 @@ export function UnlockModal({ uuid, tier, busy, loading, error, leaving, passwor
         <button type="submit" className={`qs-cta edit-unlock-btn${busy || loading || !password || !turnstileReady(turnstile) ? '' : ' is-ready'}`} disabled={busy || loading || !password || !turnstileReady(turnstile)}>
           <span className="qs-cta-text">{loading ? 'Loading your settings…' : busy ? 'Checking…' : 'Unlock'}</span>
         </button>
-        {!passwordless && <small className="edit-unlock-note">No email, no recovery. Forgotten passwords cannot be reset.</small>}
+        {!passwordless && <UnlockRecovery uuid={uuid} />}
       </form>
     </div>
   );

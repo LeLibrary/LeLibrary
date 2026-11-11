@@ -11,6 +11,7 @@ export const queryKeys = {
   // The banner/footer pill: seeded from boot data, polled on its own.
   statusPill: ['status', 'pill'] as const,
   features: ['features'] as const,
+  resetConfig: ['reset', 'config'] as const,
   savedSetups: ['setup', 'saved'] as const,
   releasesConfig: ['releases', 'config'] as const,
   releasesMovies: (region: string, from: string, to: string) =>

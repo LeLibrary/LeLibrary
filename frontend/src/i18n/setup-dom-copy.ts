@@ -63,7 +63,7 @@ export function installSetupDomCopy(root: HTMLElement): () => void {
   const attrSources = new WeakMap<Element, Map<string, string>>();
   let setupLoading = false;
 
-  const isSetupPath = () => /^\/configure(?:\/|$)|^\/[0-9a-f-]{20,}(?:\/|$)/i.test(window.location.pathname);
+  const isSetupPath = () => /^\/configure(?:\/|$)|^\/reset(?:\/|$)|^\/[0-9a-f-]{20,}(?:\/|$)/i.test(window.location.pathname);
   const phraseMap = (): Record<string, string> => copyMapFor(i18n.resolvedLanguage ?? i18n.language);
 
   function translateText(node: Text, phrases: Record<string, string>) {

@@ -102,4 +102,11 @@ describe('api client', () => {
     already.abort();
     await expect(request('/api/status', { signal: already.signal })).rejects.toMatchObject({ code: 'ABORTED' });
   });
+
+  it('keeps the Retry-After wait on a 429', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'Too many attempts. Try again later.' }), {
+      status: 429, headers: { 'content-type': 'application/json', 'retry-after': '90' },
+    })));
+    await expect(apiClient.post('/api/reset/request', {})).rejects.toMatchObject({ status: 429, retryAfterSeconds: 90 });
+  });
 });

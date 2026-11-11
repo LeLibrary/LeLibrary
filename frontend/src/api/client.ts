@@ -18,6 +18,8 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: string | undefined;
   readonly payload: unknown;
+  /** Seconds from a Retry-After header (429s), when the server sent one. */
+  retryAfterSeconds: number | undefined;
 
   constructor(message: string, status: number, payload: unknown, code?: string) {
     super(message);
@@ -129,7 +131,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const payload = await parsePayload(response);
   if (!response.ok) {
     const code = extractCode(payload) ?? (hasServerMessage(payload) ? undefined : `HTTP_${response.status}`);
-    throw new ApiError(extractMessage(payload, response.status), response.status, payload, code);
+    const failure = new ApiError(extractMessage(payload, response.status), response.status, payload, code);
+    const wait = Number(response.headers.get('retry-after'));
+    if (Number.isFinite(wait) && wait > 0) failure.retryAfterSeconds = Math.ceil(wait);
+    throw failure;
   }
   return payload as T;
 }
