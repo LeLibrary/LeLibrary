@@ -130,6 +130,7 @@ const RESET_MIGRATIONS: string[] = [
      denial_notified boolean NOT NULL DEFAULT false,
      used_at timestamptz
    )`,
+  'ALTER TABLE reset_requests ADD COLUMN IF NOT EXISTS auto_approved boolean NOT NULL DEFAULT false',
   'CREATE INDEX IF NOT EXISTS reset_requests_uuid_idx ON reset_requests (uuid)',
   'CREATE INDEX IF NOT EXISTS reset_requests_status_idx ON reset_requests (status)',
   `CREATE TABLE IF NOT EXISTS reset_audit (
@@ -168,6 +169,8 @@ export interface PublicStatus {
 
 export interface ApprovalItem {
   id: string;
+  // True when nobody needs to decide (the operator is only being told).
+  auto: boolean;
   action: ResetAction;
   discordUserId: string;
   discordName: string;
@@ -268,7 +271,7 @@ function createResetStore(options: ResetStoreOptions) {
     },
 
     /** The user ran /reset <id> in Discord. */
-    async link(id: string, discordUserId: string, discordName: string): Promise<'ok' | 'not_found' | 'limited'> {
+    async link(id: string, discordUserId: string, discordName: string, autoApprove = false): Promise<'ok' | 'not_found' | 'limited'> {
       if (!isSnowflake(discordUserId)) return 'not_found';
       await sweep();
       const existing = await row(id);
@@ -285,14 +288,23 @@ function createResetStore(options: ResetStoreOptions) {
         await audit(id, existing.uuid, 'link-limited', discordUserId);
         return 'limited';
       }
-      const updated = await pool.query(
-        `UPDATE reset_requests
-            SET status = 'awaiting_approval', discord_user_id = $2, discord_name = $3, expires_at = $4
-          WHERE id = $1 AND status = 'pending_discord' AND expires_at > $5`,
-        [id, discordUserId, clip(discordName, 64), at(now() + APPROVAL_TTL_MS), at(now())],
-      );
+      // Auto mode: the proof (link + saved key) was the check, so the request
+      // goes straight to the random wait; the operator is only told.
+      const t = at(now());
+      const updated = autoApprove
+        ? await pool.query(
+          `UPDATE reset_requests
+              SET status = 'approved', discord_user_id = $2, discord_name = $3, expires_at = $4,
+                  approved_at = $5, release_at = $6, auto_approved = true
+            WHERE id = $1 AND status = 'pending_discord' AND expires_at > $5`,
+          [id, discordUserId, clip(discordName, 64), at(now() + APPROVAL_TTL_MS), t, at(now() + releaseDelay())])
+        : await pool.query(
+          `UPDATE reset_requests
+              SET status = 'awaiting_approval', discord_user_id = $2, discord_name = $3, expires_at = $4
+            WHERE id = $1 AND status = 'pending_discord' AND expires_at > $5`,
+          [id, discordUserId, clip(discordName, 64), at(now() + APPROVAL_TTL_MS), t]);
       if ((updated.rowCount ?? 0) === 0) return 'not_found';
-      await audit(id, existing.uuid, 'linked', discordUserId);
+      await audit(id, existing.uuid, autoApprove ? 'linked-auto-approved' : 'linked', discordUserId);
       return 'ok';
     },
 
@@ -301,11 +313,14 @@ function createResetStore(options: ResetStoreOptions) {
       const result = await pool.query<ResetRow & { setup_name: string | null; setup_created: Date | null; setup_tier: string | null }>(
         `SELECT r.*, c.name AS setup_name, c.created_at AS setup_created, c.tier AS setup_tier
            FROM reset_requests r LEFT JOIN configs c ON c.uuid = r.uuid
-          WHERE r.status = 'awaiting_approval' AND r.approval_notified = false
+          WHERE r.approval_notified = false
+            AND (r.status = 'awaiting_approval'
+                 OR (r.auto_approved = true AND r.status IN ('approved','code_issued','done')))
           ORDER BY r.created_at LIMIT 20`,
       );
       return result.rows.map((r) => ({
         id: r.id,
+        auto: r.status !== 'awaiting_approval',
         action: r.action,
         discordUserId: String(r.discord_user_id),
         discordName: clip(r.discord_name, 64),

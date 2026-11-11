@@ -70,6 +70,9 @@ function mountResetRoutes(app: Express, options: ResetRoutesOptions = {}): void 
   const botSecret = String(env['RESET_BOT_SECRET'] ?? '').trim();
   const operatorId = String(env['RESET_OPERATOR_DISCORD_ID'] ?? '').trim();
   const enabled = botSecret.length >= 32 && resets.isSnowflake(operatorId);
+  // Default: the proof is the check and the operator is only told. With
+  // RESET_REQUIRE_APPROVAL=on every request waits for the operator's button.
+  const requireApproval = ['on', 'true', '1', 'yes'].includes(String(env['RESET_REQUIRE_APPROVAL'] ?? '').trim().toLowerCase());
 
   // Failed proofs per setup and per IP. Separate from the password limiter so
   // guessing keys here cannot lock the real owner out of unlock.
@@ -128,7 +131,7 @@ function mountResetRoutes(app: Express, options: ResetRoutesOptions = {}): void 
   pub.get('/config', (req: Request, res: Response) => {
     const turnstile = require('../platform/turnstile.ts');
     const state = turnstile.turnstileRequestState(req);
-    res.json({ enabled, siteKey: enabled ? state.siteKey : '' });
+    res.json({ enabled, siteKey: enabled ? state.siteKey : '', requiresApproval: enabled && requireApproval });
   });
 
   pub.use(ensureEnabled);
@@ -273,7 +276,7 @@ function mountResetRoutes(app: Express, options: ResetRoutesOptions = {}): void 
     if (!id || !resets.isSnowflake(body['discordUserId'])) { res.status(404).json({ error: 'not_found' }); return; }
     const s = await stores(res);
     if (!s) return;
-    const result = await s.reset.link(id, body['discordUserId'], String(body['discordName'] ?? ''));
+    const result = await s.reset.link(id, body['discordUserId'], String(body['discordName'] ?? ''), !requireApproval);
     if (result === 'ok') { res.json({ ok: true, action: await s.reset.actionFor(id) }); return; }
     res.status(result === 'limited' ? 429 : 404).json({ error: result });
   });

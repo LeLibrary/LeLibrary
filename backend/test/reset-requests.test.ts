@@ -85,7 +85,7 @@ async function harness({ env, delay = () => 0 } = {}) {
     editSessions: sessions,
     getStore: async () => config,
     getResetStore: async () => reset,
-    env: env ?? { RESET_BOT_SECRET: SECRET, RESET_OPERATOR_DISCORD_ID: OPERATOR },
+    env: env ?? { RESET_BOT_SECRET: SECRET, RESET_OPERATOR_DISCORD_ID: OPERATOR, RESET_REQUIRE_APPROVAL: 'on' },
   });
   const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -342,5 +342,59 @@ test('the feature is off without the bot secret and operator id', { skip }, asyn
     assert.equal((await h.pub('/api/reset/config', null, 'GET')).body.enabled, false);
     assert.equal((await h.pub('/api/reset/request', { installToken: 'x', key: 'y', action: 'reset' })).status, 404);
     assert.equal((await h.bot('/poll')).status, 404);
+  } finally { await h.close(); }
+});
+
+const AUTO_ENV = { RESET_BOT_SECRET: SECRET, RESET_OPERATOR_DISCORD_ID: OPERATOR };
+
+test('automatic mode: linking Discord starts the wait, the operator is only told', { skip }, async () => {
+  const h = await harness({ env: AUTO_ENV, delay: () => 20_000 });
+  try {
+    assert.equal((await h.pub('/api/reset/config', null, 'GET')).body.requiresApproval, false);
+    const created = await h.setup();
+    const req = await h.pub('/api/reset/request', { installToken: created.installToken, key: TORBOX, action: 'reset' });
+    const id = req.body.requestId;
+    // Still needs the real Discord link first.
+    assert.deepEqual((await h.bot('/poll')).body.deliveries, []);
+    assert.equal((await h.bot(`/${id}/link`, { discordUserId: USER, discordName: 'someone' })).status, 200);
+    assert.equal((await h.pub(`/api/reset/status/${id}`, null, 'GET')).body.status, 'approved');
+    // Informational item for the operator, flagged auto, once.
+    const first = await h.bot('/poll');
+    assert.equal(first.body.approvals.length, 1);
+    assert.equal(first.body.approvals[0].auto, true);
+    assert.deepEqual(first.body.deliveries, [], 'random wait still applies');
+    await h.bot(`/${id}/ack`, { kind: 'approval' });
+    assert.equal((await h.bot('/poll')).body.approvals.length, 0);
+    // The server never needs an operator decision here, and one cannot be forced.
+    assert.equal((await h.bot(`/${id}/decision`, { decision: 'approve', operatorId: OPERATOR })).status, 404);
+    h.clock.t += 21_000;
+    const delivery = (await h.bot('/poll')).body.deliveries[0];
+    assert.equal(delivery.discordUserId, USER);
+    const done = await h.pub('/api/reset/redeem', { requestId: id, code: delivery.code, newPassword: 'new-password-1' });
+    assert.equal(done.status, 200);
+    assert.equal(await h.config.checkPassword(created.uuid, 'new-password-1'), true);
+  } finally { await h.close(); }
+});
+
+test('automatic mode keeps every other check: proof, user limit, wrong user', { skip }, async () => {
+  const h = await harness({ env: AUTO_ENV });
+  try {
+    const created = await h.setup();
+    const bad = await h.pub('/api/reset/request', { installToken: created.installToken, key: 'wrong-key-0123456789abcdef', action: 'reset' });
+    assert.equal(bad.status, 401);
+    const id = (await h.pub('/api/reset/request', { installToken: created.installToken, key: TORBOX, action: 'reset' })).body.requestId;
+    assert.equal((await h.bot(`/${id}/link`, { discordUserId: USER, discordName: 'u' })).status, 200);
+    // Another Discord account cannot take over or receive the code.
+    assert.equal((await h.bot(`/${id}/link`, { discordUserId: OTHER, discordName: 'x' })).status, 404);
+    // Re-running the command as the same person is harmless.
+    assert.equal((await h.bot(`/${id}/link`, { discordUserId: USER, discordName: 'u' })).status, 200);
+    // Four requests from one Discord account in a day: the fourth is refused.
+    const results = [];
+    for (let i = 0; i < 3; i += 1) {
+      const other = await h.setup();
+      const rid = (await h.pub('/api/reset/request', { installToken: other.installToken, key: TORBOX, action: 'reset' })).body.requestId;
+      results.push((await h.bot(`/${rid}/link`, { discordUserId: USER, discordName: 'u' })).status);
+    }
+    assert.deepEqual(results, [200, 200, 429]);
   } finally { await h.close(); }
 });
