@@ -79,17 +79,39 @@ test('one TMDB read gives genres, keywords, language, adult flag and certificati
     adult: false,
     release_dates: { results: [{ iso_3166_1: 'US', release_dates: [{ certification: 'NC-17', type: 3 }] }] },
     release_date: '2026-03-14',
-  })), { genreIds: [27], keywordIds: [12377], lang: 'en', adult: false, certification: 'NC-17', releaseDate: '2026-03-14', lastAirDate: null, inProduction: null, voteAverage: null, voteCount: null, runtime: null, certificationGb: null, overview: null, backdropPath: null });
+  })), { genreIds: [27], keywordIds: [12377], lang: 'en', adult: false, certification: 'NC-17', releaseDate: '2026-03-14', digitalReleaseDate: null, lastAirDate: null, inProduction: null, voteAverage: null, voteCount: null, runtime: null, certificationGb: null, overview: null, backdropPath: null });
   assert.deepEqual(await genres.fetchFacts('k', 'tv', 1, reply(200, {
     genres: [{ id: 18 }],
     keywords: { results: [{ id: 9672 }] },
     original_language: 'ko',
     content_ratings: { results: [{ iso_3166_1: 'US', rating: 'TV-MA' }] },
     first_air_date: '2019-01-04', last_air_date: '2026-09-01', last_episode_to_air: { air_date: '2026-08-25' }, in_production: true,
-  })), { genreIds: [18], keywordIds: [9672], lang: 'ko', adult: false, certification: 'TV-MA', releaseDate: '2019-01-04', lastAirDate: '2026-08-25', inProduction: true, voteAverage: null, voteCount: null, runtime: null, certificationGb: null, overview: null, backdropPath: null }, 'shows list keywords under results and rate in content_ratings');
-  assert.deepEqual(await genres.fetchFacts('k', 'movie', 1, reply(404)), { genreIds: [], keywordIds: [], lang: null, adult: false, certification: null, releaseDate: null, lastAirDate: null, inProduction: false, voteAverage: null, voteCount: null, runtime: null, certificationGb: null, overview: null, backdropPath: null });
+  })), { genreIds: [18], keywordIds: [9672], lang: 'ko', adult: false, certification: 'TV-MA', releaseDate: '2019-01-04', digitalReleaseDate: null, lastAirDate: '2026-08-25', inProduction: true, voteAverage: null, voteCount: null, runtime: null, certificationGb: null, overview: null, backdropPath: null }, 'shows list keywords under results and rate in content_ratings');
+  assert.deepEqual(await genres.fetchFacts('k', 'movie', 1, reply(404)), { genreIds: [], keywordIds: [], lang: null, adult: false, certification: null, releaseDate: null, digitalReleaseDate: null, lastAirDate: null, inProduction: false, voteAverage: null, voteCount: null, runtime: null, certificationGb: null, overview: null, backdropPath: null });
   assert.equal(await genres.fetchFacts('k', 'movie', 1, reply(401)), 'rejected');
   assert.equal(await genres.fetchFacts('k', 'movie', 1, reply(503)), null);
+});
+
+test('the earliest digital release comes off the same read', async () => {
+  const reply = (data) => async () => ({ data });
+  const facts = await genres.fetchFacts('k', 'movie', 1, reply({
+    release_date: '2026-03-14',
+    release_dates: { results: [
+      { iso_3166_1: 'GB', release_dates: [{ type: 3, release_date: '2026-03-20T00:00:00.000Z' }, { type: 4, release_date: '2026-06-15T00:00:00.000Z' }] },
+      { iso_3166_1: 'US', release_dates: [{ type: 4, release_date: '2026-06-01T00:00:00.000Z' }, { type: 4, release_date: '2026-06-01' }] },
+      { iso_3166_1: 'FR', release_dates: [{ type: 4, release_date: '2026-07-01T00:00:00.000Z' }] },
+    ] },
+  }));
+  assert.equal(facts.digitalReleaseDate, '2026-06-01', 'the first digital window, whatever the region');
+  assert.equal(facts.releaseDate, '2026-03-14', 'the cinema date is still kept');
+  const none = await genres.fetchFacts('k', 'movie', 1, reply({
+    release_date: '2026-03-14',
+    release_dates: { results: [{ iso_3166_1: 'US', release_dates: [{ type: 3, release_date: '2026-03-14' }] }] },
+  }));
+  assert.equal(none.digitalReleaseDate, null, 'no digital window: never guessed');
+  const tv = await genres.fetchFacts('k', 'tv', 1, reply({ first_air_date: '2020-01-01', release_dates: { results: [{ iso_3166_1: 'US', release_dates: [{ type: 4, release_date: '2026-01-01' }] }] } }));
+  assert.equal(tv.digitalReleaseDate, null, 'shows have no digital release date');
+  assert.equal(genres.FACTS_VERSION >= 4, true, 'bumped so titles read before get the digital date');
 });
 
 test('the Hub Genres folder gets one tab per owned genre, and is dropped when empty', () => {

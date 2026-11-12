@@ -265,7 +265,8 @@ const FILM_RECENT_REFRESH_DAYS = 30;
 //   1  dates (New Releases)
 //   2  vote average/count, runtime, UK certification (Hub shelves)
 //   3  overview and backdrop (the Jellyfin metadata route)
-const FACTS_VERSION = 3;
+//   4  digital release date (New Releases follows the digital window)
+const FACTS_VERSION = 4;
 
 // Titles in this library without facts yet, or stored before keywords,
 // language, the adult flag, the certification or the dates were kept (NULL =
@@ -303,7 +304,7 @@ type Facts = {
   genreIds: number[]; keywordIds: number[]; lang: string | null; adult: boolean; certification: string | null;
   // Film: release date. Show: first air date, latest aired episode date and
   // whether TMDB says it is still running. YYYY-MM-DD or null (never guessed).
-  releaseDate: string | null; lastAirDate: string | null; inProduction: boolean | null;
+  releaseDate: string | null; digitalReleaseDate: string | null; lastAirDate: string | null; inProduction: boolean | null;
   // Hub shelves: TMDB vote average (0-10) and count, film runtime in minutes
   // (null for shows and unknown runtimes) and the UK certification.
   voteAverage: number | null; voteCount: number | null; runtime: number | null; certificationGb: string | null;
@@ -322,13 +323,34 @@ function textOrNull(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-// The dates New Releases needs, off the same TMDB details reply. A show's
+// The dates New Releases needs, off the same TMDB details reply. A film counts
+// by its digital release (the first TMDB "Digital" window, type 4, any
+// region: a WEB release exists then), else by its cinema date. A show's
 // latest aired episode comes from last_episode_to_air (TMDB's own "last
-// aired"), else last_air_date.
-function datesFrom(apiType: 'movie' | 'tv', data: any): Pick<Facts, 'releaseDate' | 'lastAirDate' | 'inProduction'> {
-  if (apiType === 'movie') return { releaseDate: isoDate(data?.release_date), lastAirDate: null, inProduction: null };
+// aired"), else last_air_date. TV has no digital release dates.
+const DIGITAL_RELEASE_TYPE = 4;
+function digitalDateFrom(data: any): string | null {
+  const regions = data?.release_dates?.results;
+  if (!Array.isArray(regions)) return null;
+  let earliest: string | null = null;
+  for (const region of regions) {
+    const dates = Array.isArray(region?.release_dates) ? region.release_dates : [];
+    for (const entry of dates) {
+      if (Number(entry?.type) !== DIGITAL_RELEASE_TYPE) continue;
+      const value = isoDate(typeof entry?.release_date === 'string' ? entry.release_date.slice(0, 10) : null);
+      if (value && (!earliest || value < earliest)) earliest = value;
+    }
+  }
+  return earliest;
+}
+
+function datesFrom(apiType: 'movie' | 'tv', data: any): Pick<Facts, 'releaseDate' | 'digitalReleaseDate' | 'lastAirDate' | 'inProduction'> {
+  if (apiType === 'movie') {
+    return { releaseDate: isoDate(data?.release_date), digitalReleaseDate: digitalDateFrom(data), lastAirDate: null, inProduction: null };
+  }
   return {
     releaseDate: isoDate(data?.first_air_date),
+    digitalReleaseDate: null,
     lastAirDate: isoDate(data?.last_episode_to_air?.air_date) || isoDate(data?.last_air_date),
     inProduction: typeof data?.in_production === 'boolean' ? data.in_production : null,
   };
@@ -402,7 +424,7 @@ async function fetchFacts(apiKey: string, apiType: 'movie' | 'tv', tmdbId: numbe
     // Gone from TMDB: store "nothing" so it is never asked again.
     if (status === 404) {
       return {
-        genreIds: [], keywordIds: [], lang: null, adult: false, certification: null, releaseDate: null, lastAirDate: null, inProduction: false,
+        genreIds: [], keywordIds: [], lang: null, adult: false, certification: null, releaseDate: null, digitalReleaseDate: null, lastAirDate: null, inProduction: false,
         voteAverage: null, voteCount: null, runtime: null, certificationGb: null,
         overview: null, backdropPath: null,
       };
@@ -436,21 +458,22 @@ async function fillForScope(scopeId: string, setupKey: string | null | undefined
       if (facts === null) continue;
       await pool.query(
         `INSERT INTO lib_tmdb_genres (media_type, tmdb_id, genre_ids, keyword_ids, orig_lang, adult, certification,
-                                      release_date, last_air_date, in_production,
+                                      release_date, digital_release_date, last_air_date, in_production,
                                       vote_average, vote_count, runtime, certification_gb, facts_v, dates_at, fetched_at,
                                       overview, backdrop_path)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now(), now(), $16, $17)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, now(), now(), $17, $18)
          ON CONFLICT (media_type, tmdb_id) DO UPDATE
            SET genre_ids = EXCLUDED.genre_ids, keyword_ids = EXCLUDED.keyword_ids,
                orig_lang = EXCLUDED.orig_lang, adult = EXCLUDED.adult,
                certification = EXCLUDED.certification, release_date = EXCLUDED.release_date,
+               digital_release_date = EXCLUDED.digital_release_date,
                last_air_date = EXCLUDED.last_air_date, in_production = EXCLUDED.in_production,
                vote_average = EXCLUDED.vote_average, vote_count = EXCLUDED.vote_count,
                runtime = EXCLUDED.runtime, certification_gb = EXCLUDED.certification_gb,
                facts_v = EXCLUDED.facts_v, dates_at = now(), fetched_at = now(),
                overview = EXCLUDED.overview, backdrop_path = EXCLUDED.backdrop_path`,
         [job.apiType, job.tmdbId, facts.genreIds, facts.keywordIds, facts.lang, facts.adult, facts.certification,
-          facts.releaseDate, facts.lastAirDate, facts.inProduction,
+          facts.releaseDate, facts.digitalReleaseDate, facts.lastAirDate, facts.inProduction,
           facts.voteAverage, facts.voteCount, facts.runtime, facts.certificationGb, FACTS_VERSION,
           facts.overview, facts.backdropPath]
       );

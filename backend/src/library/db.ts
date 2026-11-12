@@ -298,6 +298,10 @@ const MIGRATIONS = [
   // reads the title once more. Running shows are re-read weekly (their
   // latest episode moves), so `in_production` is kept too.
   `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS release_date date`,
+  // New Releases follows a film's digital window, not its cinema run: the
+  // first TMDB "Digital" release date (release_dates type 4, any region).
+  // `release_date` stays the fallback when TMDB has no digital date.
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS digital_release_date date`,
   `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS last_air_date date`,
   `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS in_production boolean`,
   `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS dates_at timestamptz`,

@@ -43,6 +43,24 @@ test('the window is the last 12 months up to today', () => {
   assert.equal(nr.isNewRelease('movies', { release_date: new Date(Date.UTC(2026, 5, 1)) }, NOW), true);
 });
 
+test('films count by their digital release, shows by their latest episode', () => {
+  const film = { release_date: '2026-07-01', digital_release_date: '2026-10-10' };
+  assert.equal(nr.releaseDateFor('movies', film), '2026-10-10', 'the digital window decides');
+  assert.equal(nr.releaseDateFor('movies', { release_date: '2026-07-01', digital_release_date: null }), '2026-07-01', 'no digital date: the cinema date');
+  assert.equal(nr.releaseDateFor('movies', { release_date: '2026-07-01', digital_release_date: new Date(Date.UTC(2026, 9, 10)) }), '2026-10-10');
+  assert.equal(nr.isNewRelease('movies', film, NOW), true);
+  assert.equal(nr.releaseDateFor('series', { release_date: '2011-04-17', digital_release_date: '2026-11-01', last_air_date: '2026-05-19' }), '2026-05-19');
+  // A film in cinemas with its digital date still to come is not out yet.
+  assert.equal(nr.isNewRelease('movies', { release_date: '2026-09-01', digital_release_date: '2026-12-01' }, NOW), false);
+  // The digital window decides the 12 months, not the cinema run.
+  assert.equal(nr.isNewRelease('movies', { release_date: '2025-12-01', digital_release_date: '2025-10-01' }, NOW), false);
+});
+
+test('both the window and the order read the same date column', () => {
+  assert.equal(nr.releaseDayColumn('movies'), 'coalesce(digital_release_date, release_date)');
+  assert.equal(nr.releaseDayColumn('series'), 'last_air_date');
+});
+
 test('shows count by their latest aired episode, so returning shows are new', () => {
   // First aired in 2011, new season this year.
   assert.equal(nr.isNewRelease('series', { release_date: '2011-04-17', last_air_date: '2026-05-19' }, NOW), true);
@@ -53,10 +71,10 @@ test('shows count by their latest aired episode, so returning shows are new', ()
 });
 
 test('the dates come off the same TMDB read as the genres', () => {
-  assert.deepEqual(genres.datesFrom('movie', { release_date: '2026-03-14' }), { releaseDate: '2026-03-14', lastAirDate: null, inProduction: null });
-  assert.deepEqual(genres.datesFrom('movie', { release_date: '' }), { releaseDate: null, lastAirDate: null, inProduction: null });
+  assert.deepEqual(genres.datesFrom('movie', { release_date: '2026-03-14' }), { releaseDate: '2026-03-14', digitalReleaseDate: null, lastAirDate: null, inProduction: null });
+  assert.deepEqual(genres.datesFrom('movie', { release_date: '' }), { releaseDate: null, digitalReleaseDate: null, lastAirDate: null, inProduction: null });
   assert.deepEqual(genres.datesFrom('tv', { first_air_date: '2011-04-17', last_air_date: '2026-05-19', in_production: false }),
-    { releaseDate: '2011-04-17', lastAirDate: '2026-05-19', inProduction: false });
+    { releaseDate: '2011-04-17', digitalReleaseDate: null, lastAirDate: '2026-05-19', inProduction: false });
   // TMDB's last aired episode wins over last_air_date (which can be a
   // scheduled episode).
   assert.equal(genres.datesFrom('tv', { last_air_date: '2026-12-01', last_episode_to_air: { air_date: '2026-10-30' } }).lastAirDate, '2026-10-30');
