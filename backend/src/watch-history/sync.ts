@@ -7,8 +7,10 @@
 //   catalogue request schedules the next run; nothing polls idle setups).
 // - Reads Nuvio's watched-items delta (`sync_pull_watched_items_delta`) from
 //   a per-service high-water mark (the event id), plus a short list of what
-//   was already sent, so nothing is ever sent twice. A service starts from
-//   the moment it was switched on (or its account changed): no backfill.
+//   was already sent, so nothing is ever sent twice. Switching a service on
+//   (or changing its account) copies the last 12 months of finished history
+//   once; older plays are skipped but still move the mark, so a years-old
+//   library is never dumped.
 // - Writes in batches with the real watched_at: Simkl V2 `POST /sync/history`
 //   (only V2 connections with media:write), MDBList `POST /sync/watched`
 //   (MDBList merges plays within 12 h; a few requests per run, the person's
@@ -38,6 +40,8 @@ const DELTA_MAX_PAGES = 4;
 const SIMKL_BATCH = 100;
 const MDBLIST_BATCH = 100;
 const MDBLIST_MAX_REQUESTS = 3;
+// How far back a service's first copy reaches (finished plays only).
+const BACKFILL_DAYS = 365;
 // Server-wide AniList writes per minute (the AniList rows keep their own
 // budget; the shared per-call budget in user-lists/anilist.ts caps both).
 const ANILIST_SYNC_PER_MIN = 8;
@@ -286,13 +290,20 @@ async function runSync(payload: { uuid?: string }, deps: SyncDeps = {}): Promise
   const profile = await nuvioProfile(rpc, config);
   const head = Number(await rpc('sync_get_watched_items_delta_cursor', { p_profile_id: profile })) || 0;
   const now = ctx.now();
-  // Marks per service; a new or changed account starts at the head.
+  // The first copy for a service (or a changed account) reaches back a year:
+  // the finished plays that already exist are worth copying, but never a
+  // years-old library. Older events are skipped yet still move the mark.
+  const backfillFrom = now - BACKFILL_DAYS * 24 * 60 * 60 * 1000;
+  // Marks per service; a new or changed account starts its copy at the oldest
+  // event the feed still has.
   const marks = new Map<SyncTarget, SyncMark>();
   for (const target of targets) {
     const fp = targetFp(config, target);
     const stored = await ctx.store.get(markKey(uuid, target)).catch(() => null) as SyncMark | null;
     if (!stored || stored.fp !== fp || !Number.isFinite(Number(stored.cursor))) {
-      await ctx.store.set(markKey(uuid, target), { cursor: head, fp, sent: [], at: now } satisfies SyncMark, MARK_TTL_S).catch(() => {});
+      const fresh: SyncMark = { cursor: 0, fp, sent: [], at: now };
+      await ctx.store.set(markKey(uuid, target), fresh, MARK_TTL_S).catch(() => {});
+      marks.set(target, fresh);
       continue;
     }
     if (stored.waitUntil && stored.waitUntil > now) continue;
@@ -316,7 +327,8 @@ async function runSync(payload: { uuid?: string }, deps: SyncDeps = {}): Promise
   const items = events.map(itemFromEvent).filter((item): item is SyncItem => item !== null).sort((a, b) => a.eventId - b.eventId);
   for (const [target, mark] of marks) {
     const sent = new Set(mark.sent || []);
-    const pending = items.filter((item) => item.eventId > Number(mark.cursor) && !sent.has(item.key));
+    const pending = items.filter((item) => item.eventId > Number(mark.cursor) && !sent.has(item.key)
+      && Date.parse(item.watchedAt) >= backfillFrom);
     try {
       const done = !pending.length ? -1
         : target === 'simkl' ? await writeSimkl(ctx, config, pending, deps)

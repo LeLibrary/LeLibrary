@@ -102,7 +102,7 @@ export function WatchHistorySection({ value, onChange, available, simklLegacy }:
         <input type="checkbox" checked={value.hideWatched} onChange={(event) => onChange({ ...value, hideWatched: event.target.checked })} />
         <i aria-hidden="true" />
       </label>
-      <p className="setup-hint pc-note">Live scrobbling is done by Nuvio itself: sign in to Simkl, MDBList or Trakt inside the Nuvio app. LeLibrary never scrobbles, so nothing is marked twice. Sync only copies from the moment you switch it on, about every 30 minutes.</p>
+      <p className="setup-hint pc-note">Live scrobbling is done by Nuvio itself: sign in to Simkl, MDBList or Trakt inside the Nuvio app. LeLibrary never scrobbles, so nothing is marked twice. When you switch a sync on, the last 12 months of Nuvio history are copied once; after that it copies what you finish, about every 30 minutes.</p>
     </Accordion>
   );
 }

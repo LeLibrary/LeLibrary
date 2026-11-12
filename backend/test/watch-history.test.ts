@@ -372,43 +372,56 @@ function syncDeps(nuvio, ctx, config, extra = {}) {
   return { ctx, openConfig: async () => config, nuvioRpc: () => nuvio.rpc, ...extra };
 }
 
-test('sync: starts at the head (no backfill), sends each finished item once, with its real watched_at', async () => {
-  const event = (id, extra) => ({ event_id: id, operation: 'upsert', content_type: 'movie', title: 'x', watched_at: 1_700_000_000_000 + id, ...extra });
-  const nuvio = fakeNuvio({ events: [event(1, { content_id: 'torbox:movie:1' }), event(2, { content_id: 'tt0000002' })] });
+test('sync: switching a service on copies the last 12 months once, then each finished item once, with its real watched_at', async () => {
+  const AT = 1_799_000_000_000; // days before the test clock, inside 12 months
+  const event = (id, extra) => ({ event_id: id, operation: 'upsert', content_type: 'movie', title: 'x', watched_at: AT + id, ...extra });
+  const nuvio = fakeNuvio({ events: [
+    // Years old: outside the backfill window, never sent, cursor still moves.
+    { event_id: 1, operation: 'upsert', content_type: 'movie', content_id: 'torbox:movie:77', watched_at: 1_600_000_000_000 },
+    event(2, { content_id: 'torbox:movie:1' }),
+    event(3, { content_id: 'tt0000002' }),
+  ] });
   const posts = [];
   const http = fakeHttp((method, url, options, body) => { posts.push({ url, options, body }); return { data: {} }; });
   const { ctx, store } = context(http);
   const config = engineConfig({ mdblistKey: MDB_KEY, watchHistory: { sources: { mdblist: { sync: true } } } });
   await sync.runSync({ uuid: UUID }, syncDeps(nuvio, ctx, config));
-  assert.equal(posts.length, 0, 'switching sync on sends nothing from before');
-  assert.equal((await store.get(sync.markKey(UUID, 'mdblist'))).cursor, 2);
+  assert.equal(posts.length, 1, 'the existing history is copied once when the service is switched on');
+  assert.deepEqual(posts[0].body.movies, [
+    { ids: { tmdb: 1 }, watched_at: new Date(AT + 2).toISOString().replace(/\.\d{3}Z$/, 'Z') },
+    { ids: { imdb: 'tt0000002' }, watched_at: new Date(AT + 3).toISOString().replace(/\.\d{3}Z$/, 'Z') },
+  ], 'the years-old play is left out, the recent ones are copied');
+  const first = await store.get(sync.markKey(UUID, 'mdblist'));
+  assert.equal(first.cursor, 3);
+  assert.equal(first.sent.length, 2);
   // New finished items arrive.
   nuvio.state.events.push(
-    event(3, { content_id: 'torbox:movie:3' }),
-    { event_id: 4, operation: 'upsert', content_id: 'torbox:series:1399', content_type: 'series', season: 1, episode: 2, watched_at: 1_700_000_100_000 },
-    { event_id: 5, operation: 'delete', content_id: 'torbox:movie:9', content_type: 'movie', watched_at: 0 },
+    event(4, { content_id: 'torbox:movie:3' }),
+    { event_id: 5, operation: 'upsert', content_id: 'torbox:series:1399', content_type: 'series', season: 1, episode: 2, watched_at: AT + 100_000 },
+    { event_id: 6, operation: 'delete', content_id: 'torbox:movie:9', content_type: 'movie', watched_at: 0 },
   );
-  nuvio.state.cursor = 5;
+  nuvio.state.cursor = 6;
   await sync.runSync({ uuid: UUID }, syncDeps(nuvio, ctx, config));
-  assert.equal(posts.length, 1);
-  assert.equal(posts[0].url, 'https://api.mdblist.com/sync/watched');
-  assert.equal(posts[0].options.params.apikey, MDB_KEY);
-  assert.deepEqual(posts[0].body.movies, [{ ids: { tmdb: 3 }, watched_at: new Date(1_700_000_000_003).toISOString().replace(/\.\d{3}Z$/, 'Z') }]);
-  assert.deepEqual(posts[0].body.shows, [{ ids: { tmdb: 1399 }, seasons: [{ number: 1, episodes: [{ number: 2, watched_at: new Date(1_700_000_100_000).toISOString().replace(/\.\d{3}Z$/, 'Z') }] }] }]);
-  assert.equal((await store.get(sync.markKey(UUID, 'mdblist'))).cursor, 5);
+  assert.equal(posts.length, 2);
+  assert.equal(posts[1].url, 'https://api.mdblist.com/sync/watched');
+  assert.equal(posts[1].options.params.apikey, MDB_KEY);
+  assert.deepEqual(posts[1].body.movies, [{ ids: { tmdb: 3 }, watched_at: new Date(AT + 4).toISOString().replace(/\.\d{3}Z$/, 'Z') }]);
+  assert.deepEqual(posts[1].body.shows, [{ ids: { tmdb: 1399 }, seasons: [{ number: 1, episodes: [{ number: 2, watched_at: new Date(AT + 100_000).toISOString().replace(/\.\d{3}Z$/, 'Z') }] }] }]);
+  assert.equal((await store.get(sync.markKey(UUID, 'mdblist'))).cursor, 6);
   // Nothing new: nothing sent. Even a replayed event is not sent again.
   await sync.runSync({ uuid: UUID }, syncDeps(nuvio, ctx, config));
-  assert.equal(posts.length, 1);
+  assert.equal(posts.length, 2);
   const mark = await store.get(sync.markKey(UUID, 'mdblist'));
   await store.set(sync.markKey(UUID, 'mdblist'), { ...mark, cursor: 2 }, 3600);
   await sync.runSync({ uuid: UUID }, syncDeps(nuvio, ctx, config));
-  assert.equal(posts.length, 1, 'the sent list stops duplicates even behind the mark');
+  assert.equal(posts.length, 2, 'the sent list stops duplicates even behind the mark');
 });
 
 test('sync: a 429 keeps the mark and waits; Simkl writes only through a V2 grant with media:write', async () => {
-  const nuvio = fakeNuvio({ events: [{ event_id: 1, operation: 'upsert', content_id: 'torbox:movie:1', content_type: 'movie', watched_at: 1 }] });
+  const AT = 1_799_000_000_000;
+  const nuvio = fakeNuvio({ events: [{ event_id: 1, operation: 'upsert', content_id: 'torbox:movie:1', content_type: 'movie', watched_at: AT + 1 }] });
   const posts = [];
-  let fail = true;
+  let fail = false;
   const http = fakeHttp((method, url, options, body) => {
     posts.push({ url, options, body });
     if (fail) return Object.assign(new Error('HTTP 429'), { response: { status: 429, headers: { 'retry-after': '120' } } });
@@ -422,30 +435,33 @@ test('sync: a 429 keeps the mark and waits; Simkl writes only through a V2 grant
   process.env.SIMKL_CLIENT_ID ||= 'synthetic-simkl-v2';
   let auth = { token: 'simkl_at_x', clientId: 'synthetic-simkl-v2', kind: 'v2', write: true };
   const deps = syncDeps(nuvio, ctx, config, { simklAuth: async () => auth });
-  await sync.runSync({ uuid: UUID }, deps); // initialise at head
-  nuvio.state.events.push({ event_id: 2, operation: 'upsert', content_id: 'torbox:movie:2', content_type: 'movie', watched_at: 2 });
-  nuvio.state.cursor = 2;
-  await sync.runSync({ uuid: UUID }, deps);
+  await sync.runSync({ uuid: UUID }, deps); // backfill of the existing history
   assert.equal(posts.length, 1);
   assert.equal(posts[0].url, 'https://api.simkl.com/sync/history');
   assert.equal(posts[0].options.headers.Authorization, 'Bearer simkl_at_x');
+  // A later item meets a 429.
+  fail = true;
+  nuvio.state.events.push({ event_id: 2, operation: 'upsert', content_id: 'torbox:movie:2', content_type: 'movie', watched_at: AT + 2 });
+  nuvio.state.cursor = 2;
+  await sync.runSync({ uuid: UUID }, deps);
+  assert.equal(posts.length, 2);
   const waiting = await store.get(sync.markKey(UUID, 'simkl'));
   assert.equal(waiting.cursor, 1, 'the mark did not move');
   assert.ok(waiting.waitUntil >= clock.t + 119_000);
   // Still waiting: nothing sent.
   fail = false;
   await sync.runSync({ uuid: UUID }, deps);
-  assert.equal(posts.length, 1);
+  assert.equal(posts.length, 2);
   clock.t += 121_000;
   await sync.runSync({ uuid: UUID }, deps);
-  assert.equal(posts.length, 2);
+  assert.equal(posts.length, 3);
   assert.equal((await store.get(sync.markKey(UUID, 'simkl'))).cursor, 2);
   // A read-only (or V1) grant never writes.
   auth = { ...auth, write: false };
-  nuvio.state.events.push({ event_id: 3, operation: 'upsert', content_id: 'torbox:movie:3', content_type: 'movie', watched_at: 3 });
+  nuvio.state.events.push({ event_id: 3, operation: 'upsert', content_id: 'torbox:movie:3', content_type: 'movie', watched_at: AT + 3 });
   nuvio.state.cursor = 3;
   await sync.runSync({ uuid: UUID }, deps);
-  assert.equal(posts.length, 2);
+  assert.equal(posts.length, 3);
 });
 
 test('AniList sync: a server-wide bucket under 30/min, only titles that map to one AniList entry', async () => {
