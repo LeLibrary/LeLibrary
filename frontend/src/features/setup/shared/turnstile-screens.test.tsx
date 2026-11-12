@@ -132,6 +132,41 @@ describe('edit page unlock modal', () => {
     expect(unlock(control('expired'))).toMatch(/edit-unlock-btn" disabled/);
   });
 
+  it('leaving: the fade keeps the submitted form, not a re-armed bot check', () => {
+    // The success path clears the password and resets the single-use token
+    // before the 450ms fade runs, which used to repaint a fresh locked form
+    // (blank password, new challenge) while it faded: it looked like the
+    // modal had come back. The fading frame must keep what was submitted.
+    const html = render(
+      <UnlockModal
+        uuid="11111111-2222-3333-4444-555555555555" tier="quick"
+        busy={false} loading={false} error={null} leaving
+        password="a-password" onPassword={() => {}} onSubmit={() => {}}
+        turnstile={control('solved', 'tok')}
+      />,
+    );
+    expect(html).not.toContain('ll-turnstile');
+    expect(html).not.toContain('Complete the check above');
+    expect(html).toContain('Loading your settings');
+    expect(html).not.toContain('>Unlock<');
+  });
+
+  it('checking: no bot check in the frame while the password is verified', () => {
+    // Resetting the spent token straight after the POST re-armed the widget
+    // mid-flight; with a slow settings load it sat there asking for a new
+    // check next to "Loading your settings...".
+    const html = render(
+      <UnlockModal
+        uuid="11111111-2222-3333-4444-555555555555" tier="quick"
+        busy loading={false} error={null} leaving={false}
+        password="a-password" onPassword={() => {}} onSubmit={() => {}}
+        turnstile={control('solved', 'tok')}
+      />,
+    );
+    expect(html).not.toContain('ll-turnstile');
+    expect(html).toContain('Checking…');
+  });
+
   it('unconfigured: no widget, Unlock enabled as before', () => {
     const html = unlock(undefined);
     expect(html).not.toContain('ll-turnstile');

@@ -111,13 +111,18 @@ export function UnlockModal({ uuid, tier, busy, loading, error, leaving, passwor
             ref={inputRef}
             type="password" autoComplete={passwordless ? "off" : "current-password"}
             value={password} onChange={(event) => onPassword(event.target.value)}
-            disabled={busy || loading}
+            disabled={busy || loading || leaving}
           />
         </label>
-        <TurnstileCheck control={turnstile} />
+        {/* While the password is being checked and the modal fades over the
+            newly unlocked page it keeps the submitted form: clearing the
+            password and resetting the single-use token before the 450ms fade
+            repainted a fresh locked form (blank password, a new challenge),
+            which read as "the modal came back". */}
+        <TurnstileCheck control={turnstile} active={!busy && !leaving} />
         {error && <p className="setup-error" role="alert">{error}</p>}
-        <button type="submit" className={`qs-cta edit-unlock-btn${busy || loading || !password || !turnstileReady(turnstile) ? '' : ' is-ready'}`} disabled={busy || loading || !password || !turnstileReady(turnstile)}>
-          <span className="qs-cta-text">{loading ? 'Loading your settings…' : busy ? 'Checking…' : 'Unlock'}</span>
+        <button type="submit" className={`qs-cta edit-unlock-btn${busy || loading || leaving || !password || !turnstileReady(turnstile) ? '' : ' is-ready'}`} disabled={busy || loading || leaving || !password || !turnstileReady(turnstile)}>
+          <span className="qs-cta-text">{loading || leaving ? 'Loading your settings…' : busy ? 'Checking…' : 'Unlock'}</span>
         </button>
         {!passwordless && <UnlockRecovery uuid={uuid} />}
       </form>
@@ -302,7 +307,6 @@ export function SetupEditPage() {
       const result = await submitWithTurnstile(unlockCheck, (token) => unlockSetup(uuid, password, token, !summary?.hasPassword));
       setEditToken(result.editToken, result.editTokenExpiresInMs);
       setInstallToken(result.installToken);
-      setPassword('');
       rememberSetup({ uuid, name: result.name ?? null, tier: result.tier ?? null });
       try {
         await loadSettings(result.editToken, result.keyServices ?? [], result.name ?? null);
@@ -310,9 +314,10 @@ export function SetupEditPage() {
         setUnlockError(LOAD_FAILED);
         return;
       }
-      // Fade the modal away over the now-filled page.
+      // Fade the modal away over the now-filled page. The password goes once
+      // the modal is gone, so the fading frame still looks like what was sent.
       setLeaving(true);
-      window.setTimeout(() => setLeaving(false), 450);
+      window.setTimeout(() => { setLeaving(false); setPassword(''); }, 450);
     } catch (caught) {
       // A wrong password leaves any other setup's edit session alone (audit F2).
       const message = caught instanceof Error ? caught.message : 'Could not unlock this setup';
