@@ -127,6 +127,9 @@ function scopeRecordFromConfig(token, config) {
     catalogFp: 0,
     syncing: null,
     force: false,
+    // Set when a provider rejected the key: decideSync then skips this scope
+    // for a day instead of hammering it on every tick.
+    authRejectedAt: 0,
   };
 }
 
@@ -241,6 +244,10 @@ function runSync(rec) {
   const promise = (async () => {
     try {
       const result = await syncScope(rec, syncOptions());
+      if (rec.authRejectedAt) {
+        rec.authRejectedAt = 0;
+        console.log(`[Library] provider key accepted again (${rec.scopeId}); scans resume`);
+      }
       // Probe tokens taken before this sync describe what it just listed.
       if (result && rec.pendingTokens) rec.probeTokens = { ...(rec.probeTokens || {}), ...rec.pendingTokens };
       // Only content changes invalidate catalog pages. A no-change sync leaves
@@ -262,6 +269,17 @@ function runSync(rec) {
     }
   })();
   rec.syncing = promise.catch((err) => {
+    // A rejected key cannot be fixed by asking again: pause this scope until
+    // the key changes (or a day passes, which is the retry).
+    try {
+      const { isKeyRejection } = require('../providers/key-check.ts') as { isKeyRejection: (message: unknown) => boolean };
+      if (isKeyRejection(err?.message)) {
+        if (!rec.authRejectedAt) {
+          console.log(`[Library] provider key rejected (${rec.scopeId}); pausing scans for 24h until the key changes`);
+        }
+        rec.authRejectedAt = Date.now();
+      }
+    } catch { /* the pause is best effort */ }
     console.warn(`[Library] sync failed (${rec.scopeId}):`, err.message);
     return null;
   });
@@ -478,6 +496,13 @@ async function resumePersisted() {
       if (rec) {
         rec.lastSyncAt = row.last_sync_at ? new Date(row.last_sync_at).getTime() : 0;
         rec.identityVersion = row.identity_version || 0;
+        // A scope paused for a rejected key stays paused across restarts.
+        try {
+          const { isKeyRejection } = require('../providers/key-check.ts') as { isKeyRejection: (message: unknown) => boolean };
+          if (row.last_status === 'error' && isKeyRejection(row.last_error)) {
+            rec.authRejectedAt = row.last_error_at ? new Date(row.last_error_at).getTime() : Date.now();
+          }
+        } catch { /* not fatal */ }
         restored++;
       }
     } catch { /* skip unresolvable scope */ }

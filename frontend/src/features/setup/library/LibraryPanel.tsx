@@ -489,7 +489,7 @@ export function LibraryPanel({ uuid, editToken }: { uuid: string; editToken: str
           </strong>
           <span>
             {scan.kind === 'rejected'
-              ? setupCopy('Check the key in Edit settings (API keys) and save again. Nothing is added to your library until the provider accepts it.', 'Comprueba la clave en Editar ajustes (Claves API) y guarda de nuevo. No se añade nada a tu biblioteca hasta que el proveedor la acepte.')
+              ? setupCopy('Check the key in Edit settings (API keys) and save again. Scans are paused until the provider accepts it.', 'Comprueba la clave en Editar ajustes (Claves API) y guarda de nuevo. Las búsquedas quedan en pausa hasta que el proveedor la acepte.')
               : scan.error
                 ? setupCopy('Last error: {{error}}. It will try again shortly.', 'Último error: {{error}}. Se volverá a intentar en breve.', { error: scan.error })
                 : setupCopy('The debrid provider did not answer. It will try again shortly.', 'El proveedor de debrid no respondió. Se volverá a intentar en breve.')}

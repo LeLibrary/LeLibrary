@@ -81,6 +81,19 @@ test('decideSync policy', () => {
   assert.equal(probe.afterProbe({ ...base, rec: { lastSyncAt: 97 * MIN }, changed: null }), 'full');
 });
 
+test('a rejected provider key pauses the scope instead of retrying every tick', () => {
+  const MIN = 60_000;
+  const DAY = 24 * 60 * MIN;
+  const base = { now: 100 * DAY, intervalMs: 2 * MIN, fullResyncMs: 10 * MIN, activeProbeMs: 30_000 };
+  const rec = { lastSyncAt: 100 * DAY - MIN, lastProbeAt: 100 * DAY - MIN, lastRequestAt: 100 * DAY - MIN };
+  assert.equal(probe.authPaused({ now: base.now, rec: { authRejectedAt: base.now - MIN } }), true);
+  assert.equal(probe.decideSync({ ...base, rec: { ...rec, authRejectedAt: base.now - MIN } }), 'skip', 'no probe, no sync');
+  assert.equal(probe.authPaused({ now: base.now, rec: { authRejectedAt: base.now - DAY } }), false, 'a day later it tries once more');
+  const after = probe.decideSync({ ...base, rec: { ...rec, authRejectedAt: base.now - DAY } });
+  assert.notEqual(after, 'skip', 'the daily retry is allowed');
+  assert.equal(probe.AUTH_PAUSE_MS, DAY);
+});
+
 test('probeScope asks each provider; Real-Debrid compares with the last token', async () => {
   process.env.WEBDAV_SOURCE = '';
   const lists = { torrents: [row(2), row(1)], usenet: [], webdl: [] };

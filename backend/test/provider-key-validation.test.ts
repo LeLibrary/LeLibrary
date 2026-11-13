@@ -108,6 +108,15 @@ test('only a definite rejection counts; an unreachable provider never blocks', a
   assert.equal((await checkProviderKey('torbox', ' good ', deps)).state, 'ok');
   assert.equal((await checkProviderKey('realdebrid', 'key', { realdebrid: async () => { throw new Error('boom'); } })).state, 'unknown');
 
+  const { isKeyRejection } = require('../src/providers/key-check.ts');
+  assert.equal(isKeyRejection('TorBox authentication failed (401)'), true);
+  assert.equal(isKeyRejection('[RD] Torrents error: bad_token'), true);
+  assert.equal(isKeyRejection('[AllDebrid] The auth apikey is invalid'), true);
+  assert.equal(isKeyRejection('Invalid Premiumize API key'), true);
+  assert.equal(isKeyRejection('connect ETIMEDOUT 94.140.4.10:443'), false, 'an outage is not a bad key');
+  assert.equal(isKeyRejection('TorBox temporarily rate limited'), false);
+  assert.equal(isKeyRejection(undefined), false);
+
   const checked = await checkProviderKeys(
     { torboxApiKey: ' tb ', rdApiKey: '', adApiKey: ' ad ', pmApiKey: '  ' },
     deps

@@ -1204,7 +1204,7 @@
     "{{provider}} rejected the key": "{{provider}} rejected the key",
     "A debrid key was rejected": "A debrid key was rejected",
     "The last library scan failed": "The last library scan failed",
-    "Check the key in Edit settings (API keys) and save again. Nothing is added to your library until the provider accepts it.": "Check the key in Edit settings (API keys) and save again. Nothing is added to your library until the provider accepts it.",
+    "Check the key in Edit settings (API keys) and save again. Scans are paused until the provider accepts it.": "Check the key in Edit settings (API keys) and save again. Scans are paused until the provider accepts it.",
     "Last error: {{error}}. It will try again shortly.": "Last error: {{error}}. It will try again shortly.",
     "The debrid provider did not answer. It will try again shortly.": "The debrid provider did not answer. It will try again shortly.",
     "Last successful scan: {{when}}.": "Last successful scan: {{when}}.",

@@ -1204,7 +1204,7 @@
     "{{provider}} rejected the key": "{{provider}} rechazó la clave",
     "A debrid key was rejected": "Se rechazó una clave de debrid",
     "The last library scan failed": "La última búsqueda en la biblioteca falló",
-    "Check the key in Edit settings (API keys) and save again. Nothing is added to your library until the provider accepts it.": "Comprueba la clave en Editar ajustes (Claves API) y guarda de nuevo. No se añade nada a tu biblioteca hasta que el proveedor la acepte.",
+    "Check the key in Edit settings (API keys) and save again. Scans are paused until the provider accepts it.": "Comprueba la clave en Editar ajustes (Claves API) y guarda de nuevo. Las búsquedas quedan en pausa hasta que el proveedor la acepte.",
     "Last error: {{error}}. It will try again shortly.": "Último error: {{error}}. Se volverá a intentar en breve.",
     "The debrid provider did not answer. It will try again shortly.": "El proveedor de debrid no respondió. Se volverá a intentar en breve.",
     "Last successful scan: {{when}}.": "Última búsqueda correcta: {{when}}.",

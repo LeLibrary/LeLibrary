@@ -80,11 +80,21 @@ function combine(answers: (boolean | null)[]): boolean | null {
   return null;
 }
 
-type Policy = { now: number; intervalMs: number; fullResyncMs: number; activeProbeMs: number; rec: { lastSyncAt?: number; lastProbeAt?: number; lastRequestAt?: number } };
+type Policy = { now: number; intervalMs: number; fullResyncMs: number; activeProbeMs: number; rec: { lastSyncAt?: number; lastProbeAt?: number; lastRequestAt?: number; authRejectedAt?: number } };
 const ACTIVE_WINDOW_MS = 60 * 60 * 1000;
+// A key the provider rejected cannot start working again by being asked more
+// often. Pause that scope's scans for a day (the next attempt is the retry),
+// unless the person changes the key (which is a new scope) or forces a retry.
+const AUTH_PAUSE_MS = 24 * 60 * 60 * 1000;
+
+function authPaused({ now, rec }: { now: number; rec: { authRejectedAt?: number } }): boolean {
+  const at = Number(rec.authRejectedAt) || 0;
+  return at > 0 && now - at < AUTH_PAUSE_MS;
+}
 
 // Before probing: is a full sync, a probe, or nothing due?
 function decideSync({ now, intervalMs, fullResyncMs, activeProbeMs, rec }: Policy): 'full' | 'probe' | 'skip' {
+  if (authPaused({ now, rec })) return 'skip';
   if (!rec.lastSyncAt) return 'full';
   if (now - rec.lastSyncAt >= fullResyncMs) return 'full';
   const active = rec.lastRequestAt != null && now - rec.lastRequestAt < ACTIVE_WINDOW_MS;
@@ -137,6 +147,8 @@ export interface ChangeProbeApi {
   decideSync: typeof decideSync;
   afterProbe: typeof afterProbe;
   headWindow: typeof headWindow;
+  authPaused: typeof authPaused;
+  AUTH_PAUSE_MS: number;
 }
 
-module.exports = { probeScope, probeTorbox, realDebridToken, combine, decideSync, afterProbe, headWindow } satisfies ChangeProbeApi;
+module.exports = { probeScope, probeTorbox, realDebridToken, combine, decideSync, afterProbe, headWindow, authPaused, AUTH_PAUSE_MS } satisfies ChangeProbeApi;

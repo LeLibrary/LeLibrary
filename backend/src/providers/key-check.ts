@@ -47,6 +47,14 @@ function classify(status: number | undefined, message: unknown): ProviderKeyStat
   return 'unknown';
 }
 
+// The adapters' wording when a provider rejected the key, as opposed to being
+// unreachable. Used to pause a scope's library scans until the key changes.
+const KEY_REJECTED = /authentication failed|bad_token|apikey is invalid|invalid [^.]*key|not authori[sz]ed|unauthori[sz]ed|forbidden|expired/i;
+
+function isKeyRejection(message: unknown): boolean {
+  return KEY_REJECTED.test(String(message || ''));
+}
+
 function statusOf(error: any): number {
   return Number(error?.response?.status) || 0;
 }
@@ -119,6 +127,7 @@ export interface ProviderKeyCheckApi {
   checkProviderKey: typeof checkProviderKey;
   checkProviderKeys: typeof checkProviderKeys;
   classify: typeof classify;
+  isKeyRejection: typeof isKeyRejection;
 }
 
 const PROVIDER_KEY_FIELDS: Record<ProviderKeyId, string> = {
@@ -141,4 +150,5 @@ module.exports = {
   checkProviderKey,
   checkProviderKeys,
   classify,
+  isKeyRejection,
 } satisfies ProviderKeyCheckApi;
