@@ -18,6 +18,9 @@ export interface LibrarySummary {
   providers: { provider: string; files: number; matched: number; attention: number }[];
   lastSyncAt: string | null;
   lastStatus: string | null;
+  lastError?: string | null;
+  lastSuccessAt?: string | null;
+  consecutiveErrors?: number;
   hasPassword: boolean;
   canFix: boolean;
   tmdbKeyProblem?: 'missing' | 'rejected' | null;

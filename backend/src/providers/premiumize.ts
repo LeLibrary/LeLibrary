@@ -474,12 +474,12 @@ async function getPremiumizeStreamLink(apiKey, itemId, fileId) {
 // Verification: PIN-aware: a new-IP device-authorization prompt is surfaced
 // as { needPin: true, pin, deviceUrl } so the UI can walk the user through it.
 async function verifyPremiumizeKey(apiKey) {
-  const { data, error, pin } = await pmRequest(apiKey, 'GET', '/account/info');
+  const { data, error, pin, status } = await pmRequest(apiKey, 'GET', '/account/info');
   if (error || !data) {
     if (pin) {
-      return { valid: false, needPin: true, pin, deviceUrl: 'https://www.premiumize.me/device', error: 'Authorize your Premiumize key' };
+      return { valid: false, needPin: true, pin, deviceUrl: 'https://www.premiumize.me/device', error: 'Authorize your Premiumize key', status };
     }
-    return { valid: false, error: error === 'authentication_failed' ? 'Invalid Premiumize API key' : (error || 'Invalid Premiumize API key') };
+    return { valid: false, error: error === 'authentication_failed' ? 'Invalid Premiumize API key' : (error || 'Invalid Premiumize API key'), status };
   }
   return { valid: true, username: data.customer_id ? String(data.customer_id) : null, premiumUntil: data.premium_until ?? null };
 }

@@ -157,6 +157,11 @@ async function summary(scopeId: string) {
     })),
     lastSyncAt: scope?.last_sync_at ? new Date(scope.last_sync_at).toISOString() : null,
     lastStatus: typeof scope?.last_status === 'string' ? scope.last_status : null,
+    // Why the last scan failed (a rejected key, a provider outage): without it
+    // an empty library is indistinguishable from an empty account.
+    lastError: typeof scope?.last_error === 'string' && scope.last_error ? String(scope.last_error).slice(0, 300) : null,
+    lastSuccessAt: scope?.last_success_at ? new Date(scope.last_success_at).toISOString() : null,
+    consecutiveErrors: Number(scope?.consecutive_errors) || 0,
     // Matching is paused while the setup's TMDB key is missing or rejected.
     tmdbKeyProblem: require('./tmdb-key.ts').scopeProblem(scopeId),
   };

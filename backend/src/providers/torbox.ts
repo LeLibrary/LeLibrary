@@ -282,7 +282,7 @@ async function fetchDownloadSources(apiKey, params = { bypass_cache: true }, {
       if (status === 401 || status === 403) {
         await store.del(key);
         if (endpoint !== 'torrents') return [];
-        throw new Error('TorBox authentication failed');
+        throw new Error(`TorBox authentication failed (${status})`);
       }
       const previous = await store.get(key);
       if (!requireFresh && Array.isArray(previous)) return previous.map(row => ({ ...row, source: endpoint === 'torrents' ? 'torrent' : endpoint }));
@@ -443,6 +443,22 @@ async function getTorBoxFiles(apiKey, source, itemId) {
 const TB_PLAN_TTL = 6 * 3600;
 const TORBOX_PRO_PLAN = 2;
 
+async function verifyTorBoxKey(apiKey) {
+  if (!apiKey || String(apiKey).length < 10) return { valid: false, status: 401, error: 'API key invalid' };
+  try {
+    const res = await axios.get(`${TORBOX_BASE}/user/me`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      timeout: 12000, validateStatus: () => true, httpAgent, httpsAgent,
+    });
+    if (res.status === 401 || res.status === 403) return { valid: false, status: res.status, error: 'authentication failed' };
+    if (res.status < 200 || res.status >= 300) return { valid: false, status: res.status, error: 'TorBox request failed' };
+    const data = res.data?.data || {};
+    return { valid: true, status: res.status, plan: Number.isInteger(data.plan) ? data.plan : null };
+  } catch (err) {
+    return { valid: false, status: err.response?.status || 0, error: err.message };
+  }
+}
+
 async function getTorBoxPlan(apiKey) {
   if (!apiKey) return null;
   const cache = require('../runtime/cache.ts');
@@ -533,7 +549,7 @@ export interface TorboxApi {
   torboxRateStatus: () => { inFlight: number; queued: number; ratePerAccountEndpoint: number };
 }
 
-module.exports = { torboxListPage, torboxCachedListing, getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, getTorBoxPlaybackStatus, getTorBoxPlan, hasTorBoxUsenet, isVideoFile, isJunkVideo, torboxRateStatus } satisfies TorboxApi
+module.exports = { torboxListPage, torboxCachedListing, getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, getTorBoxPlaybackStatus, getTorBoxPlan, verifyTorBoxKey, hasTorBoxUsenet, isVideoFile, isJunkVideo, torboxRateStatus } satisfies TorboxApi
 
 function torboxRateStatus() {
   return { inFlight: tbInFlight, queued: tbQueue.length, ratePerAccountEndpoint: TB_RATE_LIMIT };

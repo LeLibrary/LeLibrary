@@ -82,8 +82,8 @@ async function getAlldebridStreamLink(apiKey, magnetId, fileId) {
 
 // Verification: /user returns account info for a valid key.
 async function verifyAlldebridKey(apiKey) {
-  const { data, error } = await adRequest(apiKey, 'GET', '/v4/user');
-  if (error || !data?.user) return { valid: false, error: error || 'Invalid AllDebrid API key' };
+  const { data, error, status } = await adRequest(apiKey, 'GET', '/v4/user');
+  if (error || !data?.user) return { valid: false, error: error || 'Invalid AllDebrid API key', status };
   return { valid: true, username: data.user.username || null, isPremium: !!data.user.isPremium };
 }
 

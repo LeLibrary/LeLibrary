@@ -9,6 +9,7 @@ import {
   type FixMediaType, type LibraryItem, type LibraryStats, type LibrarySummary, type LibraryView, type SeasonEpisode, type ShowSeason, type TmdbChoice,
 } from '@/features/setup/library/library-api';
 import { LibraryGlance } from '@/features/setup/library/LibraryGlance';
+import { scanNotice } from '@/features/setup/library/scan-notice';
 import './library.css';
 
 // The Library tab of the setup edit page: what LeLibrary found in this
@@ -430,6 +431,8 @@ export function LibraryPanel({ uuid, editToken }: { uuid: string; editToken: str
   }
 
   const synced = relativeTime(summary?.lastSyncAt ?? null);
+  const scan = scanNotice(summary);
+  const lastSuccess = relativeTime(summary?.lastSuccessAt ?? null);
   const tabs: { id: LibraryView; label: string; count: number | undefined }[] = [
     { id: 'attention', label: 'Needs attention', count: summary?.attention },
     { id: 'matched', label: 'Matched', count: summary?.matched },
@@ -472,6 +475,26 @@ export function LibraryPanel({ uuid, editToken }: { uuid: string; editToken: str
           {summary.attention > 0 && (
             <button type="button" className="setup-secondary" onClick={() => void retry()} disabled={retrying}>{retrying ? 'Starting…' : 'Try matching again'}</button>
           )}
+        </div>
+      )}
+
+      {scan && (
+        <div className={`lib-scan is-${scan.tone}`} role="alert">
+          <strong>
+            {scan.kind === 'rejected'
+              ? scan.provider
+                ? setupCopy('{{provider}} rejected the key', '{{provider}} rechazó la clave', { provider: scan.provider })
+                : setupCopy('A debrid key was rejected', 'Se rechazó una clave de debrid')
+              : setupCopy('The last library scan failed', 'La última búsqueda en la biblioteca falló')}
+          </strong>
+          <span>
+            {scan.kind === 'rejected'
+              ? setupCopy('Check the key in Edit settings (API keys) and save again. Nothing is added to your library until the provider accepts it.', 'Comprueba la clave en Editar ajustes (Claves API) y guarda de nuevo. No se añade nada a tu biblioteca hasta que el proveedor la acepte.')
+              : scan.error
+                ? setupCopy('Last error: {{error}}. It will try again shortly.', 'Último error: {{error}}. Se volverá a intentar en breve.', { error: scan.error })
+                : setupCopy('The debrid provider did not answer. It will try again shortly.', 'El proveedor de debrid no respondió. Se volverá a intentar en breve.')}
+          </span>
+          {lastSuccess ? <span>{setupCopy('Last successful scan: {{when}}.', 'Última búsqueda correcta: {{when}}.', { when: lastSuccess })}</span> : null}
         </div>
       )}
 

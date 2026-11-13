@@ -290,7 +290,8 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     // TMDB powers matching, metadata, posters and search, and every tier marks
     // it required in the UI. Enforce it here too so an API call cannot create a
     // setup that the interface would have refused.
-    const keyRecord = (keys && typeof keys === 'object' ? keys : {}) as Record<string, unknown>;
+    const keyRecordBase = (keys && typeof keys === 'object' ? keys : {}) as Record<string, unknown>;
+    let keyRecord = keyRecordBase;
     if (!String(keyRecord['tmdbApiKey'] || '').trim()) {
       res.status(400).json({ error: 'A TMDB API key is required' });
       return;
@@ -299,6 +300,23 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       res.status(400).json({ error: `Tier must be one of: ${TIERS.join(', ')}` });
       return;
     }
+    // A rejected debrid key would save fine and then leave an empty library,
+    // which looks like the addon doing nothing at all. Check it now. A
+    // provider we cannot reach is not a rejection (the save still works).
+    try {
+      const { checkProviderKeys } = require('../providers/key-check.ts') as {
+        checkProviderKeys: (record: Record<string, unknown>) => Promise<{ keys: Record<string, unknown>; rejected: { label: string } | null }>;
+      };
+      const checked = await checkProviderKeys(keyRecord);
+      keyRecord = checked.keys;
+      if (checked.rejected) {
+        res.status(400).json({
+          error: `That ${checked.rejected.label} key was rejected. Check it and try again.`,
+          code: 'invalid-provider-key',
+        });
+        return;
+      }
+    } catch { /* the check is best effort: never block creation on it */ }
     const cleanedConfig = withCompactWatchHistory(withoutAnilistUser(config)).config;
     // A Nuvio/Stremio login made on the Destination step is sealed with the
     // setup at creation, so it survives even if the person never presses
@@ -333,6 +351,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
         registerBackgroundRefresh(created.installToken, {
           ...((config && typeof config === 'object' ? config : {}) as Record<string, unknown>),
           ...((keys && typeof keys === 'object' ? keys : {}) as Record<string, unknown>),
+          ...keyRecord,
         });
       } catch { /* warming is best effort: the first manifest request still starts it */ }
       // The creator just set the password (and passed the bot check): hand
@@ -600,6 +619,24 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     const { normaliseSetupConfigCollections } = require('../setup/collections.ts') as {
       normaliseSetupConfigCollections: <T>(config: T) => T;
     };
+    // A changed debrid key is checked before it is stored (see create): a
+    // rejected one would leave an empty library with nothing explaining it.
+    if (saveKeys) {
+      try {
+        const { checkProviderKeys } = require('../providers/key-check.ts') as {
+          checkProviderKeys: (record: Record<string, unknown>) => Promise<{ keys: Record<string, unknown>; rejected: { label: string } | null }>;
+        };
+        const checked = await checkProviderKeys(saveKeys);
+        saveKeys = checked.keys;
+        if (checked.rejected) {
+          res.status(400).json({
+            error: `That ${checked.rejected.label} key was rejected. Check it and try again.`,
+            code: 'invalid-provider-key',
+          });
+          return;
+        }
+      } catch { /* best effort, as on create */ }
+    }
     const saved = await store.save(uuid, {
       config: cleanedConfig === undefined ? undefined : normaliseSetupConfigCollections((cleanedConfig ?? config) as Record<string, unknown>),
       keys: saveKeys,
