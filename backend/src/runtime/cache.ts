@@ -416,6 +416,11 @@ async function getStats() {
   }
 }
 
+function memoryStats() {
+  const stats = memCache.getStats();
+  return { keys: stats.keys, keyBytes: stats.ksize, estimatedValueBytes: stats.vsize, maxKeys: MEM_CACHE_MAX_KEYS };
+}
+
 function makeKey(prefix, ...parts) {
   return `${prefix}:${parts.filter(Boolean).join(':')}`;
 }
@@ -434,6 +439,7 @@ export interface CacheApi {
   exists: any;
   expire: any;
   getStats: any;
+  memoryStats: any;
   makeKey: any;
   getRedisClient: any;
   healthPing: any;
@@ -455,6 +461,7 @@ module.exports = {
   exists,
   expire,
   getStats,
+  memoryStats,
   makeKey,
   getRedisClient,
   healthPing,

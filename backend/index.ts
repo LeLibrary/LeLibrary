@@ -45,6 +45,7 @@ const server = app.listen(PORT, () => {
   // Watch history sync (v6): Nuvio -> Simkl / MDBList / AniList, opt-in.
   require('./src/watch-history/sync.ts');
   require('./src/runtime/jobs.ts').startJobs();
+  require('./src/runtime/resource-monitor.ts').startResourceMonitor();
   // LeLibrary's own folder art (hosted, needs the server's TMDB key): hourly
   // Live cover redraws and the daily "has this Subject changed?" check.
   require('./src/catalog/art-watch.ts').start();
@@ -69,6 +70,7 @@ function shutdown(signal: string): void {
     try { (require('./src/library/engine.ts') as { stop: () => void }).stop(); } catch { /* best effort */ }
     try { (require('./src/releases/sync.ts') as { stop: () => void }).stop(); } catch { /* best effort */ }
     try { await (require('./src/library/db.ts') as { close: () => Promise<void> }).close(); } catch { /* best effort */ }
+    try { require('./src/runtime/resource-monitor.ts').stopResourceMonitor(); } catch { /* best effort */ }
     try { (require('./src/runtime/event-loop-lag.ts') as { stopLagProbe: () => void }).stopLagProbe(); } catch { /* best effort */ }
     clearTimeout(forceExit);
     process.exit(0);

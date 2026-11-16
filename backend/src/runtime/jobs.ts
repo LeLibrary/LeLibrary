@@ -74,6 +74,10 @@ async function cancelJob(kind, id) {
   await cache.del(key);
 }
 
+function queueStats() {
+  return { queued: queue.size, running: running.size };
+}
+
 function jobState(kind, id) {
   return queue.get(jobKey(kind, id)) || null;
 }
@@ -194,6 +198,7 @@ export interface JobsApi {
   scheduleJob: any;
   cancelJob: any;
   jobState: any;
+  queueStats: any;
   runDueJobs: any;
   resumeJobs: any;
   syncFromStore: any;
@@ -206,6 +211,7 @@ module.exports = {
   scheduleJob,
   cancelJob,
   jobState,
+  queueStats,
   runDueJobs,
   resumeJobs,
   syncFromStore,
