@@ -26,7 +26,7 @@ async function pmRequest(apiKey, method, path, params = {}, form = {}) {
     }
     const res = await axios({ method, url: `${PM_BASE}${path}`, ...opts });
     const body = res.data || {};
-    if (body.status === 'error') {
+    if (res.status >= 400 || body.status === 'error') {
       let pin = body.pin || null;
       if (!pin && typeof body.message === 'string') {
         const m = body.message.match(/pin[:\s]+([A-Za-z0-9-]+)/i);
@@ -60,13 +60,21 @@ const listAllCache = new Map();
 const LISTALL_TTL = 45000;
 const PM_CACHE_MAX = 200;
 
-async function pmListAllFiles(apiKey) {
+function pmScanError(status, error) {
+  const rejected = status === 401 || status === 403 || /authentication.failed|bad_token|invalid.*key|unauthori[sz]ed|forbidden/i.test(String(error || ''));
+  const failure = new Error(rejected ? 'Premiumize authentication failed' : 'Premiumize library scan failed');
+  failure.status = status;
+  return failure;
+}
+
+async function pmListAllFiles(apiKey, request = pmRequest, strict = false) {
   const now = Date.now();
   const hit = listAllCache.get(apiKey);
   if (hit && now - hit.at < LISTALL_TTL) return hit.files;
-  const { data, error } = await pmRequest(apiKey, 'GET', '/item/listall');
+  const { data, error, status } = await request(apiKey, 'GET', '/item/listall');
   if (error || !Array.isArray(data?.files)) {
-    console.warn(`[Premiumize] /item/listall failed: ${error || 'unexpected response'}`);
+    if (strict) throw pmScanError(status, error);
+    console.warn('[Premiumize] /item/listall failed');
     return [];
   }
   boundedSet(listAllCache, apiKey, { at: now, files: data.files }, PM_CACHE_MAX, (e) => now - e.at >= LISTALL_TTL);
@@ -206,49 +214,25 @@ function pmGroupDescend(items, files, prefixParts, depth) {
   }
 }
 
-// Build library rows from finished/seeding transfers (transfer/list). Each
-// transfer becomes a row; its files are resolved lazily via a deep recursive
-// /folder/list walk. This is the battle-tested approach AIOStreams/StremThru
-// use, so it works even when /item/listall is flaky for an account.
-async function pmTransferItems(apiKey) {
-  const { data, error } = await pmRequest(apiKey, 'GET', '/transfer/list');
-  if (error || !Array.isArray(data?.transfers)) {
-    console.warn(`[Premiumize] /transfer/list failed: ${error || 'unexpected response'}`);
-    return [];
-  }
-  return data.transfers
-    .filter(t => t.status === 'finished' || t.status === 'seeding')
-    .map(t => ({
-      id:                String(t.id),
-      name:              t.name || '',
-      filename:          t.name || '',
-      source:            'premiumize',
-      download_state:    t.status === 'seeding' ? 'seeding' : 'completed',
-      download_finished: true,
-      progress:          1,
-    }))
-    .filter(i => i.name);
-}
-
-// ── Tier-3 fallback: walk the cloud from the root folder ─────
+// ── Fallback: walk the cloud from the root folder ───────────
 // Dedicated Premiumize addons (e.g. Josherinos' stremio-premiumize-addon)
 // browse content with /folder/list and stream each file's direct link: they
 // never rely on /transfer/list or /item/listall. Walking the root folder
 // therefore finds EVERYTHING in the cloud: transfers, manually-organised
-// folders, uploads. Used when the other two sources come back empty.
+// folders, uploads. Used when the flat listing succeeds but is empty.
 
 const rootWalkCache = new Map();
 const ROOTWALK_TTL = 45000;
 
 // Recursively build a folder tree from /folder/list (bounded depth safety net).
-async function pmWalkFolder(apiKey, folderId, depth) {
-  if (depth > 10) return null;
-  const { data, error } = await pmRequest(apiKey, 'GET', '/folder/list', { id: folderId || '' });
-  if (error || !Array.isArray(data?.content)) return null;
+async function pmWalkFolder(apiKey, folderId, depth, request = pmRequest) {
+  if (depth > 10) throw pmScanError(undefined, 'depth limit');
+  const { data, error, status } = await request(apiKey, 'GET', '/folder/list', { id: folderId || '' });
+  if (error || !Array.isArray(data?.content)) throw pmScanError(status, error);
   const children = [];
   for (const c of data.content) {
     if (c.type === 'folder') {
-      const sub = await pmWalkFolder(apiKey, c.id, depth + 1);
+      const sub = await pmWalkFolder(apiKey, c.id, depth + 1, request);
       if (sub) children.push(sub);
     } else {
       children.push({ type: 'file', id: String(c.id), name: c.name || '', size: c.size || 0, link: c.link || null });
@@ -288,11 +272,11 @@ function pmTreeToItems(node, depth) {
   return items;
 }
 
-async function pmRootWalkItems(apiKey) {
+async function pmRootWalkItems(apiKey, request = pmRequest) {
   const now = Date.now();
   const hit = rootWalkCache.get(apiKey);
   if (hit && now - hit.at < ROOTWALK_TTL) return hit.items;
-  const root = await pmWalkFolder(apiKey, '', 0);
+  const root = await pmWalkFolder(apiKey, '', 0, request);
   if (!root) return [];
   const items = [];
   for (const c of root.children) {
@@ -357,28 +341,14 @@ function pmFilesToItems(files) {
   return items;
 }
 
-async function getPremiumizeDownloads(apiKey) {
-  // /item/listall covers the whole cloud (including manually-organised content
-  // that never went through a transfer). When it returns files, use it. If it
-  // returns nothing (erroring or empty for the account), fall back to the
-  // transfer list, then to a full root-folder walk, so a flaky /item/listall
-  // can never empty someone's library.
-  const files = await pmListAllFiles(apiKey);
-  if (files.length > 0) {
-    const items = pmFilesToItems(files);
-    if (items.length > 0) {
-      console.log(`[Premiumize] Downloads: ${items.length} items (from ${files.length} cloud files)`);
-      return items;
-    }
-  }
-  const transferItems = await pmTransferItems(apiKey);
-  if (transferItems.length > 0) {
-    console.log(`[Premiumize] Downloads (transfer fallback): ${transferItems.length} items`);
-    return transferItems;
-  }
-  const rootItems = await pmRootWalkItems(apiKey);
-  console.log(`[Premiumize] Downloads (root-walk fallback): ${rootItems.length} items`);
-  return rootItems;
+async function getPremiumizeDownloads(apiKey, request = pmRequest) {
+  // The flat listing is authoritative. A folder walk uses different item
+  // identities, so it must not replace the index when this request fails.
+  const files = await pmListAllFiles(apiKey, request, true);
+  if (files.length > 0) return pmFilesToItems(files);
+  // A successful empty listing can still need the historical fallback for
+  // accounts where listall is incomplete. Fail closed if that walk fails.
+  return pmRootWalkItems(apiKey, request);
 }
 
 // ── Files & stream links ──────────────────────────────────────

@@ -49,7 +49,8 @@ async function noteProjection(uuids: Iterable<string>, metas: any[], { store = r
     const last = await store.get(recordKey(uuid)).catch(() => null);
     if (last && last.fp === fp) continue;
     const earliest = last && Number.isFinite(last.at) ? last.at + MIN_GAP_MS : 0;
-    const delayMs = Math.max(SETTLE_MS, earliest - now());
+    const queued = jobs.jobState?.(JOB_KIND, String(uuid).toLowerCase());
+    const delayMs = Math.max(SETTLE_MS, earliest - now(), (queued?.notBefore || 0) - now());
     await jobs.scheduleJob({ kind: JOB_KIND, id: String(uuid).toLowerCase(), payload: { uuid: String(uuid).toLowerCase() }, delayMs }).catch(() => {});
   }
 }
@@ -122,7 +123,7 @@ function defaultDeps() {
   };
 }
 
-async function runUpdate(payload: { uuid?: string }, deps: any = defaultDeps()): Promise<'done' | 'retry'> {
+async function runUpdateInner(payload: { uuid?: string }, deps: any): Promise<'done' | 'retry'> {
   const uuid = String((payload && payload.uuid) || '').toLowerCase();
   if (!uuid) return 'done';
   const opened = await deps.openSetup(uuid);
@@ -153,6 +154,17 @@ async function runUpdate(payload: { uuid?: string }, deps: any = defaultDeps()):
   }
   await deps.store.set(recordKey(uuid), { fp: fingerprint(owned.folders || []), at: Date.now(), origin }, RECORD_TTL_SECONDS);
   return 'done';
+}
+
+// A rejected session or install capability is unlikely to recover within seconds.
+// Keep the durable job for a later retry (or a newly scheduled projection),
+// while leaving all other failures on the normal short exponential backoff.
+async function runUpdate(payload: { uuid?: string }, deps: any = defaultDeps()): Promise<'done' | 'retry' | { retryAfterMs: number }> {
+  try { return await runUpdateInner(payload, deps); }
+  catch (error: any) {
+    if (Number(error?.response?.status || error?.status) === 401) return { retryAfterMs: 30 * 60 * 1000 };
+    throw error;
+  }
 }
 
 // Registered at require time so the runner has the handler before it starts.

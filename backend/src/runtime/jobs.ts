@@ -105,14 +105,17 @@ async function runJob(record, now) {
   running.add(key);
   try {
     const outcome = await handler(record.payload, { attempts: record.attempts, id: record.id });
-    if (outcome === 'retry') {
+    if (outcome === 'retry' || (outcome && outcome.retryAfterMs > 0)) {
       record.attempts += 1;
       if (record.attempts >= MAX_ATTEMPTS) {
         console.log(`[Jobs] ${record.kind} ${record.id} gave up after ${record.attempts} attempts`);
         await cancelJob(record.kind, record.id);
         return;
       }
-      const wait = backoffFor(record.attempts);
+      const requestedWait = Number(outcome?.retryAfterMs);
+      const wait = Number.isFinite(requestedWait) && requestedWait > 0
+        ? Math.max(backoffFor(record.attempts), Math.min(requestedWait, 60 * 60 * 1000))
+        : backoffFor(record.attempts);
       record.notBefore = Date.now() + wait;
       await cache.set(key, record, Math.max(60, Math.ceil((record.expiresAt - Date.now()) / 1000)));
       console.log(`[Jobs] ${record.kind} ${record.id} not ready (attempt ${record.attempts}); retrying in ${Math.round(wait / 1000)}s`);

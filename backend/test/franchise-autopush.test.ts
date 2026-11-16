@@ -102,3 +102,24 @@ test('a library still building is retried later', async () => {
   const d = deps({ fetchOwned: async () => null });
   assert.equal(await auto.runUpdate({ uuid: 'u1' }, d), 'retry');
 });
+
+test('authentication failure waits longer and remains retryable', async () => {
+  const d = deps({ nuvio: { refresh: async () => { const e = new Error('unauthorized'); e.response = { status: 401 }; throw e; } } });
+  assert.deepEqual(await auto.runUpdate({ uuid: 'u1' }, d), { retryAfterMs: 30 * 60 * 1000 });
+  assert.equal(await d.store.get('nuviofr:u1'), undefined);
+  d.nuvio.refresh = async () => ({ data: { nuvioToken: 'renewed' }, refreshed: false });
+  assert.equal(await auto.runUpdate({ uuid: 'u1' }, d), 'done');
+});
+
+test('temporary failures retain the standard retry behavior', async () => {
+  const d = deps({ nuvio: { refresh: async () => { const e = new Error('unavailable'); e.response = { status: 503 }; throw e; } } });
+  await assert.rejects(auto.runUpdate({ uuid: 'u1' }, d), /unavailable/);
+});
+
+test('new projection does not shorten a queued authentication cooldown', async () => {
+  const now = 1_000_000_000;
+  const scheduled = [];
+  const jobs = { jobState: () => ({ notBefore: now + 30 * 60 * 1000 }), scheduleJob: async (job) => scheduled.push(job) };
+  await auto.noteProjection(['u1'], [{ collectionId: 1 }], { store: memoryStore(), jobs, now: () => now });
+  assert.equal(scheduled[0].delayMs, 30 * 60 * 1000);
+});

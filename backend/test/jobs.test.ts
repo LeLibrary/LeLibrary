@@ -151,3 +151,17 @@ test('resuming on boot keeps a job this process scheduled first', async () => {
   await jobs.cancelJob(kind, 'z');
   await jobs.cancelJob(kind, 'w');
 });
+
+test('a handler can request a longer retry delay and still recover', async () => {
+  const kind = freshKind('long-retry');
+  let runs = 0;
+  jobs.registerJobHandler(kind, async () => ++runs === 1 ? { retryAfterMs: 30 * 60 * 1000 } : 'done');
+  await jobs.scheduleJob({ kind, id: 'long' });
+  await jobs.runDueJobs();
+  assert.ok(jobs.jobState(kind, 'long').notBefore >= Date.now() + 29 * 60 * 1000);
+  await jobs.runDueJobs(Date.now() + 60_000);
+  assert.equal(runs, 1);
+  await jobs.runDueJobs(Date.now() + 31 * 60 * 1000);
+  assert.equal(runs, 2);
+  assert.equal(jobs.jobState(kind, 'long'), null);
+});
