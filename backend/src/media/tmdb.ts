@@ -173,7 +173,7 @@ async function findByImdbId(apiKey, imdbId) {
 // falling to weak token overlap (where a different show whose title merely
 // contains the query, e.g. "In the Name of Law and Order", could outrank it).
 function nameMatchScore(query, raw) {
-  const norm = s => s.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+  const norm = s => String(s).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, 'and').replace(/[^\p{L}\p{M}\p{N}]/gu, '');
   const qn = norm(query);
   const nn = norm(raw);
   if (!qn || !nn) return 0;
@@ -182,8 +182,9 @@ function nameMatchScore(query, raw) {
   if (qn.startsWith(nn)) return 75;
   if (nn.includes(qn)) return 65;
   if (qn.includes(nn)) return 55;
-  const qt = String(query).toLowerCase().split(/\W+/).filter(Boolean);
-  const nt = String(raw).toLowerCase().split(/\W+/).filter(Boolean);
+  const words = s => String(s).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^\p{L}\p{M}\p{N}]+/u).filter(Boolean);
+  const qt = words(query);
+  const nt = words(raw);
   const overlap = qt.filter(t => nt.includes(t)).length;
   return overlap ? 30 * (overlap / qt.length) : 0;
 }
@@ -238,7 +239,7 @@ function resultYear(result) {
 function isExactTitleMatch(query, result) {
   if (titleScore(query, result) === 100) return true;
   if (!Array.isArray(result.alternativeTitles)) return false;
-  const norm = (s) => String(s || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+  const norm = (s) => String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, 'and').replace(/[^\p{L}\p{M}\p{N}]/gu, '');
   const qn = norm(query);
   if (!qn) return false;
   return result.alternativeTitles.some((raw) => norm(raw) === qn);

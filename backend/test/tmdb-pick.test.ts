@@ -104,3 +104,31 @@ test('series picker derives seasons and exact episodes from fallback videos', ()
 });
 
 export interface TmdbPickTestTestModule {};
+
+test('accented Pokemon title outranks a different Pokemon show', () => {
+  const main = { id: 1, name: 'Pokémon', first_air_date: '1997-04-01', vote_count: 500 };
+  const other = { id: 2, name: 'Pokemon no Uchi Atsumaru?', first_air_date: '2015-01-01', vote_count: 10 };
+  assert.equal(pickBestResult('Pokemon', [other, main], 2015).id, 1);
+  assert.equal(pickBestResult('Pokémon', [other, main], 2015).id, 1);
+});
+
+test('accented exact alternative titles keep their exact-match priority', () => {
+  const main = { id: 1, name: 'Pocket Monsters', alternativeTitles: ['Pokémon'], first_air_date: '1997-04-01' };
+  const other = { id: 2, name: 'Pokemon no Uchi Atsumaru?', first_air_date: '2015-01-01' };
+  assert.equal(pickBestResult('Pokemon', [other, main], 2015).id, 1);
+});
+
+test('foreign and apostrophized titles retain exact matching', () => {
+  const french = { id: 1, name: "L'Été d'Amélie", first_air_date: '2020-01-01' };
+  const frenchOther = { id: 2, name: 'Lete dAmelie Returns', first_air_date: '2024-01-01' };
+  assert.equal(pickBestResult('Lete dAmelie', [frenchOther, french], 2024).id, 1);
+  const japanese = { id: 3, name: 'ポケットモンスター', first_air_date: '1997-01-01' };
+  const japaneseOther = { id: 4, name: 'ポケットモンスター 新シリーズ', first_air_date: '2024-01-01' };
+  assert.equal(pickBestResult('ポケットモンスター', [japaneseOther, japanese], 2024).id, 3);
+});
+
+test('non-Latin diacritics keep distinct titles distinct', () => {
+  const { titleScore } = require('../src/media/tmdb.ts');
+  assert.equal(titleScore('ガンダム', { name: 'ガンダム' }), 100);
+  assert.notEqual(titleScore('カンダム', { name: 'ガンダム' }), 100);
+});

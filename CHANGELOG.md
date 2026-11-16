@@ -6,6 +6,8 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ### Fixes
 
+- Improved matching for accented and foreign-language titles, including Pokemon, reducing incorrect matches to similarly named shows.
+
 - Premiumize library scans now keep the previous library if the provider cannot return a complete listing, instead of treating a failed or partial scan as an empty library.
 - Nuvio collection updates wait longer after an authentication failure and retry later, reducing repeated failures while allowing recovery.
 
