@@ -491,3 +491,15 @@ test('an IMDb id tag in a movie name decides the match', async () => {
   const tv = await resolve.resolveMatch({ name: 'Emma (1996) {imdb-tt0460649}', mediaType: 'movie' }, deps);
   assert.notEqual(tv.tmdbId, 1100, 'a TV id never becomes a film match');
 });
+
+test('an exact anime title is not replaced by an unrelated non-anime Pokemon show', async () => {
+  const main = { id: 60572, name: 'Pokémon' };
+  const unrelated = { id: 341532, name: 'Pokemon sol y luna' };
+  const d = stubDeps({ candidates: [unrelated, main], counts: { 60572: [{ season: 20, count: 43 }], 341532: [{ season: 20, count: 100 }] }, animeIds: new Set(['60572']) });
+  const series = await resolve.resolveMatch({ name: 'Pokemon.S20E01.1080p', mediaType: 'series' }, d);
+  assert.equal(series.ok, false);
+  assert.equal(series.reason, 'exact-anime-only');
+  const anime = await resolve.resolveMatch({ name: 'Pokemon.S20E01.1080p', mediaType: 'anime' }, d);
+  assert.equal(anime.ok, true);
+  assert.equal(anime.tmdbId, 60572);
+});

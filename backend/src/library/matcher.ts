@@ -209,6 +209,7 @@ function weakOuterFilm(name, parsed, files) {
 }
 
 function parsedTypeCorrection(mediaType, parsed, failureReason) {
+  if (failureReason === 'exact-anime-only' && mediaType === 'series' && parsed?.isSeries && parsed.isAnime) return 'anime';
   if (failureReason === 'type-mismatch' && mediaType === 'movie' && parsed?.isSeries) {
     return parsed.isAnime ? 'anime' : 'series';
   }

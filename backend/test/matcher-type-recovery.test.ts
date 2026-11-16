@@ -70,3 +70,11 @@ test('an eligible type correction preserves a no-candidate result instead of the
   assert.equal(result.ok, false);
   assert.equal(result.reason, 'no-candidate');
 });
+
+test('a series rejected because its exact match is anime retries as anime', () => {
+  assert.equal(matcher.parsedTypeCorrection('series', { isSeries: true, isAnime: true }, 'exact-anime-only'), 'anime');
+  assert.equal(matcher.parsedTypeCorrection('series', { isSeries: true, isAnime: false }, 'exact-anime-only'), null);
+  assert.equal(matcher.parsedTypeCorrection('series', { isSeries: true, isAnime: true }, 'anime-excluded'), null);
+  assert.equal(matcher.parsedTypeCorrection('movie', { isSeries: true }, 'exact-anime-only'), null);
+  assert.equal(matcher.parsedTypeCorrection('series', { isSeries: false }, 'exact-anime-only'), null);
+});

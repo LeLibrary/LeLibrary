@@ -650,6 +650,15 @@ async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbAp
       if (!eligible.includes(dropped)) tried.push(`title-downgrade:${dropped.id}`);
     }
 
+    // When the only exact series title is anime, a stale series classification
+    // must not let an unrelated non-anime spin-off take its place. Tell the
+    // indexed matcher to retry the same title in the anime namespace.
+    const exactEligible = eligible.filter((cand) => !cand.__redirect && isExactTitle(cand));
+    if (mediaType === 'series' && exactEligible.length > 0
+      && exactEligible.every((cand) => d.isAnimeCandidate(cand))) {
+      return failure('exact-anime-only', tried);
+    }
+
     // Movies carry no seasons to validate: best non-anime pick wins.
     if (!isSeries) {
       const winner = ranked[0] || null;
