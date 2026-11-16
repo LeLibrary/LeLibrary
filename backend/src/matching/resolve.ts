@@ -545,28 +545,35 @@ async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbAp
       });
     }
 
-    // Pokemon's international and Japanese episode orders disagree. A unique
-    // episode title in the actual filename is stronger evidence than SxxExx.
-    // Use only the independently identified main anime and the key-free TMDB
-    // addon episode list; never infer an offset or select a similarly named show.
+    // Pokemon's international and Japanese episode orders disagree, and release
+    // packs number whole eras as one season (a "Horizons" pack says S20). A
+    // unique episode title in the actual filename is stronger evidence than
+    // SxxExx. Check the known series by id and accept a hit only when exactly
+    // one series claims that title: never infer an offset or select a
+    // similarly named show.
     const pokemonTitles = new Set(['pokemon', 'pokemonxy', 'pokemonjourneys', 'pokemonhorizons']);
     if (allowEpisodeTitleMapping && isSeries && pokemonTitles.has(compactTitle(info.title)) && info.episode != null
         && info.episodeEnd == null && typeof d.episodeCatalog === 'function') {
-      const main = candidates.find((c) => Number(c.id) === 60572 && d.isAnimeCandidate(c));
-      if (main) {
-        const videos = await d.episodeCatalog(60572).catch(() => []);
+      const knownPokemonSeries = [[60572, 'Pokémon'], [220150, 'Pokémon Horizons']];
+      const hits = [];
+      let catalogs = 0;
+      for (const [seriesId, fallbackTitle] of knownPokemonSeries) {
+        const videos = await d.episodeCatalog(seriesId).catch(() => []);
+        if (videos.length) catalogs++;
         const episodeHit = matchEpisodeTitle(name, videos);
-        if (episodeHit) {
-          return { ...canonical({ tmdbId: 60572, tmdbType: 'series', season: episodeHit.season,
-            seasonStart: null, seasonEnd: null, episode: episodeHit.episode, episodeEnd: null,
-            title: displayTitle(null, main, 'Pokémon'), year: info.year ?? null, candidate: main }),
-            episodeTitleEvidence: episodeHit.title, mediaTypeOverride: 'anime' };
-        }
-        return failure(videos.length ? 'ambiguous-candidate' : 'search-unavailable', tried);
+        if (episodeHit) hits.push({ seriesId, fallbackTitle, episodeHit });
       }
-      // No verified main-series candidate means a similarly named talk show
-      // must never become a substitute merely because its season exists.
-      return failure('no-candidate', tried);
+      if (hits.length === 1) {
+        const { seriesId, fallbackTitle, episodeHit } = hits[0];
+        const cand = candidates.find((c) => Number(c.id) === seriesId) || null;
+        return { ...canonical({ tmdbId: seriesId, tmdbType: 'series', season: episodeHit.season,
+          seasonStart: null, seasonEnd: null, episode: episodeHit.episode, episodeEnd: null,
+          title: displayTitle(null, cand, fallbackTitle), year: info.year ?? null, candidate: cand }),
+          episodeTitleEvidence: episodeHit.title, mediaTypeOverride: 'anime' };
+      }
+      // No title evidence (or two series claim it) must never let a similarly
+      // named talk show or the wrong era become a substitute.
+      return failure(hits.length ? 'ambiguous-candidate' : (catalogs ? 'no-candidate' : 'search-unavailable'), tried);
     }
 
     const ranked = rankedCandidates(picked, candidates);

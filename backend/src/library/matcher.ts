@@ -461,7 +461,7 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
           if (movie?.ok) { resolved = movie; resolvedType = 'movie'; }
         }
         if (!resolved?.ok) resolved = await resolveMatch({ name, mediaType, lang, tmdbApiKey,
-          allowEpisodeTitleMapping: embedded.length <= 1 && !builder.shouldProbeEpisodeNamedPack(raw, parsedOuter),
+          allowEpisodeTitleMapping: true,
         }, undefined, sharedMatchLookups);
         // An explicit episode marker is stronger evidence than a stale movie
         // catalog classification. Retry in the parser-indicated TV namespace

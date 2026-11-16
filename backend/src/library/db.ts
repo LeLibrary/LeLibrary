@@ -161,6 +161,19 @@ const MIGRATIONS = [
      AND lower(name) ~ 'pok[eé]mon'
      AND ((match_status IN ('failed','skipped') AND match_error LIKE '%anime-excluded:60572%')
        OR (match_status = 'matched' AND tmdb_id = 341532))`,
+  // Second pass: the first review only saw one episode list. A pack that
+  // numbers all of Pokemon Horizons as "S20" was landing on the main series'
+  // season 20, so re-check every failed Pokemon row and the wrong-era matches
+  // once more. A re-check that finds nothing keeps the stored match.
+  `WITH migration AS (
+     INSERT INTO lib_data_migrations (name) VALUES ('pokemon-title-review-2')
+     ON CONFLICT DO NOTHING RETURNING name
+   )
+   UPDATE lib_items SET match_version = 'pokemon-title-review-2'
+   WHERE EXISTS (SELECT 1 FROM migration) AND removed_at IS NULL
+     AND lower(name) ~ 'pok[eé]mon'
+     AND (match_status IN ('failed','skipped')
+       OR (match_status = 'matched' AND (tmdb_id IN (341532, 80652) OR (tmdb_id = 60572 AND season = 20))))`,
   `ALTER TABLE lib_scopes ADD COLUMN IF NOT EXISTS identity_version integer NOT NULL DEFAULT 0`,
   `UPDATE lib_scopes SET last_success_at = last_sync_at
      WHERE last_success_at IS NULL AND last_status = 'ok' AND last_sync_at IS NOT NULL`,

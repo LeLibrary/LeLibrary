@@ -13,7 +13,8 @@ const videos = [
 ];
 const main = { id: 60572, name: 'Pokémon', isJapaneseAnimation: true };
 const wrong = { id: 341532, name: 'Pokemon sol y luna', isJapaneseAnimation: false };
-function deps(catalog = async () => videos) {
+const horizonsVideos = [{ season: 1, episode: 119, name: "Don't Give Up, Crocalor!" }];
+function deps(catalog = async (id) => Number(id) === 60572 ? videos : []) {
   return {
     parse: parser.guessMediaInfo,
     search: async () => [wrong, main],
@@ -24,6 +25,9 @@ function deps(catalog = async () => videos) {
     findEpisode: async () => null,
     episodeCatalog: catalog,
   };
+}
+function pokemonDeps() {
+  return deps(async (id) => Number(id) === 220150 ? horizonsVideos : videos);
 }
 
 test('title evidence maps a Pokemon episode to its real TMDB season', async () => {
@@ -36,6 +40,11 @@ test('title evidence maps a Pokemon episode to its real TMDB season', async () =
 test('ambiguous or generic titles never decide an episode', () => {
   assert.equal(matchEpisodeTitle('Pokemon.S16E03.A.Marvellous.Journey.Begins.mkv', [...videos, { season: 17, episode: 2, name: 'A Marvellous Journey Begins' }]), null);
   assert.equal(matchEpisodeTitle('Pokemon.S16E03.A.Big.Day.mkv', [{ season: 1, episode: 1, name: 'A Big Day' }]), null);
+});
+
+test('short two-word episode titles still match when the whole title is present', () => {
+  assert.equal(matchEpisodeTitle('Pokemon.S20E14.Fly!.Wattrel!.1080p.mkv', [{ season: 1, episode: 14, name: 'Fly! Wattrel!' }]).episode, 14);
+  assert.equal(matchEpisodeTitle('Pokemon.S20E14.1080p.mkv', [{ season: 1, episode: 14, name: 'Fly! Wattrel!' }]), null);
 });
 
 test('mapping never uses an unrelated show or guesses when metadata is absent', async () => {
@@ -51,10 +60,17 @@ test('episode title mapping is opt-in and handles accented titles', async () => 
 });
 
 
+test('Pokemon Horizons packs numbered as one season map by title, not by offset', async () => {
+  const result = await resolveMatch({ name: 'Pokemon.S20E119.Dont.Give.Up.Crocalor.1080p.WEB-DL.mkv', mediaType: 'series', allowEpisodeTitleMapping: true }, pokemonDeps());
+  assert.equal(result.ok, true);
+  assert.deepEqual([result.tmdbId, result.season, result.episode, result.mediaTypeOverride], [220150, 1, 119, 'anime']);
+  assert.equal(result.episodeTitleEvidence, "Don't Give Up, Crocalor!");
+});
+
 test('missing or duplicated episode-title evidence never guesses numbered Pokemon episodes', async () => {
-  const noTitle = await resolveMatch({ name: 'Pokemon.S20E03.1080p', mediaType: 'anime', allowEpisodeTitleMapping: true }, deps());
+  const noTitle = await resolveMatch({ name: 'Pokemon.S20E03.1080p', mediaType: 'anime', allowEpisodeTitleMapping: true }, pokemonDeps());
   assert.equal(noTitle.ok, false);
-  assert.equal(noTitle.reason, 'ambiguous-candidate');
+  assert.equal(noTitle.reason, 'no-candidate');
   const missingMain = deps(); missingMain.search = async () => [wrong];
   const wrongShow = await resolveMatch({ name: 'Pokemon.S20E03.1080p', mediaType: 'series', allowEpisodeTitleMapping: true }, missingMain);
   assert.equal(wrongShow.ok, false);
