@@ -405,6 +405,14 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
               matchName += ' Season ' + embeddedSummary.season;
             }
             if (embeddedSummary.year) matchName += ' ' + embeddedSummary.year;
+            // A single episode's original filename can contain an exact title;
+            // the synthetic summary above discards that evidence.
+            const compactEmbeddedTitle = String(embeddedSummary.title || '').normalize('NFKD')
+              .replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (embedded.length === 1 && embeddedSummary.episode != null
+                && ['pokemon', 'pokemonxy', 'pokemonjourneys', 'pokemonhorizons'].includes(compactEmbeddedTitle)) {
+              matchName = mediaFileName(embedded[0].name || embedded[0].short_name || embedded[0].path || embedded[0].filename);
+            }
             embeddedMeta = await builder.matchItem({ ...raw, name: matchName }, tmdbApiKey, embeddedType, lang, config);
             if (!embeddedMeta && embeddedType === 'series') {
               embeddedMeta = await builder.matchItem({ ...raw, name: matchName }, tmdbApiKey, 'anime', lang, config);
@@ -452,7 +460,9 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
           const movie = await resolveMatch({ name, mediaType: 'movie', lang, tmdbApiKey, requireUniqueStrongYear: true }, undefined, sharedMatchLookups);
           if (movie?.ok) { resolved = movie; resolvedType = 'movie'; }
         }
-        if (!resolved?.ok) resolved = await resolveMatch({ name, mediaType, lang, tmdbApiKey }, undefined, sharedMatchLookups);
+        if (!resolved?.ok) resolved = await resolveMatch({ name, mediaType, lang, tmdbApiKey,
+          allowEpisodeTitleMapping: embedded.length <= 1 && !builder.shouldProbeEpisodeNamedPack(raw, parsedOuter),
+        }, undefined, sharedMatchLookups);
         // An explicit episode marker is stronger evidence than a stale movie
         // catalog classification. Retry in the parser-indicated TV namespace
         // instead of leaving a deterministic type mismatch as a failure.
@@ -661,6 +671,7 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
         resolved = { ...resolved, season: packSummary.season };
       }
       metrics.add('tmdbCalls');
+      if (resolved.mediaTypeOverride === 'anime') resolvedType = 'anime';
       const source = await builder.canonicalSource(tmdbApiKey, resolved, lang);
       const meta = builder.buildMatchMeta(
         source, resolvedType, raw,
@@ -668,6 +679,7 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
         resolved.seasonStart, resolved.seasonEnd,
       );
       if (meta && meta.tmdbId) {
+        if (resolved.episodeTitleEvidence) meta.episodeTitleEvidence = resolved.episodeTitleEvidence;
         const { torboxItem, ...stored } = meta;
         const imdbId = await resolveImdb(tmdbApiKey, meta, meta.imdbId || null);
         await store.saveMatch(job.id, {

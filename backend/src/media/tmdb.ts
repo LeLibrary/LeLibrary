@@ -973,20 +973,24 @@ function seasonEpisodesFromVideos(videos, seasonNumber) {
     .sort((a, b) => a.episode - b.episode);
 }
 
+const seriesPickerInFlight = new Map();
 async function getSeriesPickerFallback(tmdbId) {
   const numericId = Number(tmdbId);
   if (!Number.isSafeInteger(numericId) || numericId <= 0) return [];
   const cacheKey = `series-picker-fallback:${numericId}`;
   const cached = seasonCache.get(cacheKey);
   if (cached !== undefined) return cached;
-  try {
-    const res = await axios.get(`${TMDB_ADDON_BASE}/meta/series/tmdb%3A${numericId}.json`, { timeout: 12000 });
-    const videos = Array.isArray(res.data?.meta?.videos) ? res.data.meta.videos : [];
-    if (videos.length) seasonCache.set(cacheKey, videos);
-    return videos;
-  } catch {
-    return [];
-  }
+  if (seriesPickerInFlight.has(numericId)) return seriesPickerInFlight.get(numericId);
+  const pending = (async () => {
+    try {
+      const res = await axios.get(`${TMDB_ADDON_BASE}/meta/series/tmdb%3A${numericId}.json`, { timeout: 12000 });
+      const videos = Array.isArray(res.data?.meta?.videos) ? res.data.meta.videos : [];
+      if (videos.length) seasonCache.set(cacheKey, videos);
+      return videos;
+    } catch { return []; }
+  })();
+  seriesPickerInFlight.set(numericId, pending);
+  try { return await pending; } finally { seriesPickerInFlight.delete(numericId); }
 }
 
 function clearCaches() {
@@ -1196,6 +1200,7 @@ export interface TmdbApi {
   getSeasonEpisodeCounts: any;
   getSeriesSeasons: any;
   getSeasonEpisodes: any;
+  getSeriesPickerFallback: any;
   seriesSeasonsFromVideos: any;
   seasonEpisodesFromVideos: any;
   titleScore: any;
@@ -1209,4 +1214,4 @@ export interface TmdbApi {
   isTmdbAnimeItem: any;
 }
 
-module.exports = { withMatchRequestCounter, searchMetadata, searchCandidates, searchPersonCredits, discoverByGenre, getRecommendations, findByImdbId, getMetadata, imdbToTmdb, imdbToTmdbCached, findEpisodeByAirDate, getSeasonEpisodeCounts, getSeriesSeasons, getSeasonEpisodes, seriesSeasonsFromVideos, seasonEpisodesFromVideos, titleScore, pickBestResult, clearCaches, getTrending, getPopular, getImdbId, getImdbIds, getMovieReleaseInfo, isTmdbAnimeItem } satisfies TmdbApi;
+module.exports = { withMatchRequestCounter, searchMetadata, searchCandidates, searchPersonCredits, discoverByGenre, getRecommendations, findByImdbId, getMetadata, imdbToTmdb, imdbToTmdbCached, findEpisodeByAirDate, getSeasonEpisodeCounts, getSeriesSeasons, getSeasonEpisodes, getSeriesPickerFallback, seriesSeasonsFromVideos, seasonEpisodesFromVideos, titleScore, pickBestResult, clearCaches, getTrending, getPopular, getImdbId, getImdbIds, getMovieReleaseInfo, isTmdbAnimeItem } satisfies TmdbApi;

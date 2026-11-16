@@ -20,6 +20,7 @@
 const parser = require('../media/parser.ts');
 const tmdb = require('../media/tmdb.ts');
 const { lookupSplitSeason, lookupTitleRedirect, tableVersion } = require('./tables.ts');
+const { matchEpisodeTitle } = require('./episode-title.ts');
 
 // v5: Latin search runs keep their punctuation; tracker labels and "+" names
 // parse cleanly. Re-checks every matched row once (a failed re-check keeps
@@ -255,6 +256,7 @@ function defaultDeps(tmdbApiKey, layer) {
     titleScore: (query, cand) => t.titleScore(query, cand),
     findImdb: (imdbId) => t.findByImdbId(tmdbApiKey, imdbId),
     findEpisode: (tmdbId, date, lang) => t.findEpisodeByAirDate(tmdbApiKey, tmdbId, date, lang),
+    episodeCatalog: (tmdbId) => typeof t.getSeriesPickerFallback === 'function' ? t.getSeriesPickerFallback(tmdbId) : Promise.resolve([]),
   };
 }
 
@@ -322,11 +324,23 @@ function failure(reason, tried) {
 // `parsed` lets a caller hand over a title/year the parser cannot express
 // (a film whose title starts with what looks like a season marker, "S4: The
 // Bob Lazar Story"); everything else still goes through the same checks.
-async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbApiKey = null, requireUniqueStrongYear = false, parsed = null }, deps, shared = null) {
+async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbApiKey = null, requireUniqueStrongYear = false, parsed = null, allowEpisodeTitleMapping = false }, deps, shared = null) {
   const baseDeps = deps || defaultDeps(tmdbApiKey);
   const d = shared ? { ...baseDeps } : baseDeps;
   const seasonMemo = shared?.seasonCounts || new Map();
   if (shared) {
+    // One public episode-list fetch/clone per matching batch, not per file.
+    if (baseDeps.episodeCatalog) {
+      const catalog = baseDeps.episodeCatalog;
+      const episodeCatalogs = shared.episodeCatalogs || (shared.episodeCatalogs = new Map());
+      d.episodeCatalog = (id) => {
+        if (!episodeCatalogs.has(id)) {
+          const pending = Promise.resolve().then(() => catalog(id)).catch((err) => { episodeCatalogs.delete(id); throw err; });
+          episodeCatalogs.set(id, pending);
+        }
+        return episodeCatalogs.get(id);
+      };
+    }
     const search = baseDeps.search;
     d.search = (query, type, year, searchLang) => {
       // Keep letters from every script: a Latin-only key made a mixed
@@ -529,6 +543,30 @@ async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbAp
         year: info.year,
         candidate: winner,
       });
+    }
+
+    // Pokemon's international and Japanese episode orders disagree. A unique
+    // episode title in the actual filename is stronger evidence than SxxExx.
+    // Use only the independently identified main anime and the key-free TMDB
+    // addon episode list; never infer an offset or select a similarly named show.
+    const pokemonTitles = new Set(['pokemon', 'pokemonxy', 'pokemonjourneys', 'pokemonhorizons']);
+    if (allowEpisodeTitleMapping && isSeries && pokemonTitles.has(compactTitle(info.title)) && info.episode != null
+        && info.episodeEnd == null && typeof d.episodeCatalog === 'function') {
+      const main = candidates.find((c) => Number(c.id) === 60572 && d.isAnimeCandidate(c));
+      if (main) {
+        const videos = await d.episodeCatalog(60572).catch(() => []);
+        const episodeHit = matchEpisodeTitle(name, videos);
+        if (episodeHit) {
+          return { ...canonical({ tmdbId: 60572, tmdbType: 'series', season: episodeHit.season,
+            seasonStart: null, seasonEnd: null, episode: episodeHit.episode, episodeEnd: null,
+            title: displayTitle(null, main, 'Pokémon'), year: info.year ?? null, candidate: main }),
+            episodeTitleEvidence: episodeHit.title, mediaTypeOverride: 'anime' };
+        }
+        return failure(videos.length ? 'ambiguous-candidate' : 'search-unavailable', tried);
+      }
+      // No verified main-series candidate means a similarly named talk show
+      // must never become a substitute merely because its season exists.
+      return failure('no-candidate', tried);
     }
 
     const ranked = rankedCandidates(picked, candidates);

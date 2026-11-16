@@ -6,7 +6,7 @@ const { getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, isVideoFile, is
 const { getRealDebridDownloads, getRealDebridFiles, getRealDebridStreamLink } = require('../providers/realdebrid.ts');
 const providers = require('../providers/index.ts');
 const cache = require('../runtime/cache.ts');
-const { searchMetadata, searchCandidates, getMetadata, findEpisodeByAirDate, getSeasonEpisodeCounts, getImdbId, getImdbIds, getMovieReleaseInfo, titleScore, pickBestResult } = require('../media/tmdb.ts');
+const { searchMetadata, searchCandidates, getMetadata, findEpisodeByAirDate, getSeasonEpisodeCounts, getSeriesPickerFallback, getImdbId, getImdbIds, getMovieReleaseInfo, titleScore, pickBestResult } = require('../media/tmdb.ts');
 const { guessMediaInfo } = require('../media/parser.ts');
 const { resolveMatch } = require('../matching/resolve.ts');
 const { matchCustomStreams, customStreamsFingerprint } = require('../media/custom-streams.ts');
@@ -48,8 +48,10 @@ function matchCacheKey(type, lang, name, parsed = undefined) {
   // file plain series (e.g. multi-voiceover season packs) under the anime
   // bucket. The versioned namespace retires those poisoned entries; the old
   // keys expire untouched. Series/movie keys are unaffected (no cold rebuild).
+  const pokemonTitle = String(info?.title || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const pokemonVersion = type !== 'movie' && ['pokemon', 'pokemonxy', 'pokemonjourneys', 'pokemonhorizons'].includes(pokemonTitle) ? ':episode-title-v1' : '';
   const namespacedType = type === 'anime' ? 'anime2' : type;
-  return `match:${namespacedType}:${lang}:${name}${range}`;
+  return `match:${namespacedType}:${lang}:${name}${range}${pokemonVersion}`;
 }
 
 // Strip per-user torrent items before anything is stored: the match result is
@@ -592,6 +594,7 @@ function populateTmdbIndexFromMetas(metas, userKey = '') {
       episode: meta.episode,
       episodeEnd: meta.episodeEnd ?? null,
       episodeTitle: meta.episodeTitle ?? null,
+      episodeTitleEvidence: meta.episodeTitleEvidence ?? null,
       airDate: meta.airDate ?? null,
       airDates: Array.isArray(meta.airDates) ? meta.airDates : null,
     };
@@ -896,9 +899,13 @@ async function matchItem(item, tmdbApiKey, type, lang, config = null) {
       pick: (query, cands, year) => pickBestResult(query, cands, year),
       seasonCounts: (id, l) => getSeasonEpisodeCounts(tmdbApiKey, id, l),
       isAnimeCandidate: (cand) => isTmdbAnime(cand),
+      titleScore,
+      episodeCatalog: getSeriesPickerFallback,
       findEpisode: (id, date, l) => findEpisodeByAirDate(tmdbApiKey, id, date, l),
     };
-    const resolved = await resolveMatch({ name, mediaType: type, lang }, coreDeps);
+    const resolved = await resolveMatch({ name, mediaType: type, lang,
+      allowEpisodeTitleMapping: !shouldProbeEpisodeNamedPack(item, info),
+    }, coreDeps);
     if (!resolved.ok) { await matchCache.set(cacheKey, null, NULL_MATCH_TTL); return null; }
     // Canonical identity in hand: build from it, never re-derive. The source
     // object comes from canonicalSource (not the raw candidate): split-season
@@ -920,8 +927,9 @@ async function matchItem(item, tmdbApiKey, type, lang, config = null) {
 
     console.log(`[TMDB] "${info.title}" → "${resolved.title}" (${resolved.tmdbId}) anime=${isAnime}`);
 
-    const meta = buildMatchMeta(source, type, item, season, episode, episodeEnd, seasonStart, seasonEnd);
+    const meta = buildMatchMeta(source, resolved.mediaTypeOverride || type, item, season, episode, episodeEnd, seasonStart, seasonEnd);
     meta.episodeTitle = info.episodeTitle || null;
+    if (resolved.episodeTitleEvidence) meta.episodeTitleEvidence = resolved.episodeTitleEvidence;
     // Persist air dates for date-based releases so later meta/stream reads can
     // match them to the TMDB episode date without re-parsing.
     meta.airDate = info.airDate || null;
@@ -1067,7 +1075,7 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   const seen = new Map();
   for (const meta of results) {
     const indexKey = `${userKey}:${meta.type}:${meta.tmdbId}`;
-    const entry    = { item: meta.torboxItem, season: meta.season, seasonStart: meta.seasonStart ?? null, seasonEnd: meta.seasonEnd ?? null, episode: meta.episode, episodeEnd: meta.episodeEnd ?? null, episodeTitle: meta.episodeTitle ?? null };
+    const entry    = { item: meta.torboxItem, season: meta.season, seasonStart: meta.seasonStart ?? null, seasonEnd: meta.seasonEnd ?? null, episode: meta.episode, episodeEnd: meta.episodeEnd ?? null, episodeTitle: meta.episodeTitle ?? null, episodeTitleEvidence: meta.episodeTitleEvidence ?? null };
 
     if (!tmdbindex.has(indexKey)) {
       setTmdbIndex(indexKey, [entry]);
@@ -1167,7 +1175,7 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   // never dropped as documented.
   const output = paginated
     .filter(m => m.poster && !m._drop)
-    .map(({ torboxItem, torboxItems, tmdbId, released, catalogType, isJapaneseAnimation, season, seasonStart, seasonEnd, episode, _drop, _freshMatch, _genres, _adult, _cert, ...rest }) => rest);
+    .map(({ torboxItem, torboxItems, tmdbId, released, catalogType, isJapaneseAnimation, season, seasonStart, seasonEnd, episode, episodeTitleEvidence, _drop, _freshMatch, _genres, _adult, _cert, ...rest }) => rest);
 
   if (completion) return { metas: output, completion, _fresh: freshCount };
   return output;
@@ -1750,7 +1758,7 @@ async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, 
   const attemptedProviders = new Set();
   const successfulProviders = new Set();
   let remainingOwnedLinkBudget = MAX_OWNED_LINKS_PER_REQUEST;
-  await time('streams:files-links', () => pLimit(filtered.map(({ item }) => async () => {
+  await time('streams:files-links', () => pLimit(filtered.map(({ item, episodeTitleEvidence }) => async () => {
     const providerId = providers.providerBySource(item.source);
     const getFiles = () => providers.getFiles(config, item);
     const getLink  = (fileId) => providers.getStreamLink(config, item, fileId);
@@ -1783,7 +1791,11 @@ async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, 
 
     let targetFiles = videoFiles;
     if ((type === 'series' || type === 'anime') && episode != null && episode !== '' && videoFiles.length > 1) {
-      const byEp = videoFiles.filter(f => {
+      // A remapped episode uses source numbering that may point at another
+      // file. Match its proven title first and never fall back to those numbers.
+      const byEvidence = episodeTitleEvidence
+        ? videoFiles.filter(f => episodeTitleMatches(episodeFileInfo(f)?.episodeTitle, episodeTitleEvidence)) : [];
+      const byEp = episodeTitleEvidence ? [] : videoFiles.filter(f => {
         const info  = episodeFileInfo(f);
         if (!info || info.episode == null) return false;
         if (season != null && season !== '' && info.season != null && String(info.season) !== String(season)) return false;
@@ -1792,7 +1804,9 @@ async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, 
         const epTo   = (info.episodeEnd != null) ? parseInt(info.episodeEnd, 10) : epFrom;
         return epReq >= epFrom && epReq <= epTo;
       });
-      if (byEp.length > 0) {
+      if (episodeTitleEvidence) {
+        targetFiles = byEvidence;
+      } else if (byEp.length > 0) {
         targetFiles = byEp;
       } else {
         const reqTitle = await requestedEpisodeTitle(tmdbApiKey, tmdbId, season, episode, lang);

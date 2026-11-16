@@ -61,6 +61,7 @@ function entryFor(meta) {
     episode: meta.episode,
     episodeEnd: meta.episodeEnd ?? null,
     episodeTitle: meta.episodeTitle ?? null,
+    episodeTitleEvidence: meta.episodeTitleEvidence ?? null,
     airDate: meta.airDate ?? null,
     airDates: Array.isArray(meta.airDates) ? meta.airDates : null,
   };
@@ -146,7 +147,7 @@ async function applyPosterEnhance(metas, enhance) {
 function toOutput(metas) {
   return metas
     .filter((m) => m.poster && !m._drop)
-    .map(({ torboxItem, torboxItems, tmdbId, released, catalogType, isJapaneseAnimation, season, seasonStart, seasonEnd, episode, _drop, _freshMatch, ...rest }) => rest);
+    .map(({ torboxItem, torboxItems, tmdbId, released, catalogType, isJapaneseAnimation, season, seasonStart, seasonEnd, episode, episodeTitleEvidence, _drop, _freshMatch, ...rest }) => rest);
 }
 
 async function buildFromRows(rows, opts) {

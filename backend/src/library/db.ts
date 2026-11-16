@@ -148,6 +148,19 @@ const MIGRATIONS = [
   // re-queues stale rows once (see claimMatchJobs) so fixes heal without
   // manual resets; NULL means pre-versioning and always re-queues once.
   `ALTER TABLE lib_items ADD COLUMN IF NOT EXISTS match_version text`,
+  // Reconsider the specific historical Pokemon failures and the unrelated
+  // Sun & Moon series once. Existing matches stay available unless the
+  // resolver can prove a replacement; owner overrides still take precedence.
+  `CREATE TABLE IF NOT EXISTS lib_data_migrations (name text PRIMARY KEY)`,
+  `WITH migration AS (
+     INSERT INTO lib_data_migrations (name) VALUES ('pokemon-title-review-1')
+     ON CONFLICT DO NOTHING RETURNING name
+   )
+   UPDATE lib_items SET match_version = 'pokemon-title-review-1'
+   WHERE EXISTS (SELECT 1 FROM migration) AND removed_at IS NULL
+     AND lower(name) ~ 'pok[eé]mon'
+     AND ((match_status IN ('failed','skipped') AND match_error LIKE '%anime-excluded:60572%')
+       OR (match_status = 'matched' AND tmdb_id = 341532))`,
   `ALTER TABLE lib_scopes ADD COLUMN IF NOT EXISTS identity_version integer NOT NULL DEFAULT 0`,
   `UPDATE lib_scopes SET last_success_at = last_sync_at
      WHERE last_success_at IS NULL AND last_status = 'ok' AND last_sync_at IS NOT NULL`,
