@@ -163,6 +163,10 @@ const HUB_FOLDER_ART: Record<string, { coverImageUrl: string; focusGifUrl: strin
     coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-shows-v3.jpg',
     focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-shows-focus-v3.gif',
   },
+  'folder-lelibrary-hub-anime': {
+    coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-anime-v3.jpg',
+    focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-anime-focus-v3.gif',
+  },
   'folder-lelibrary-hub-new': {
     coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-new-v3.jpg',
     focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-new-focus-v3.gif',
@@ -215,6 +219,10 @@ const HUB_ID = 'collection-lelibrary-hub';
 const HUB_ORDER = ['folder-lelibrary-hub-movies', 'folder-lelibrary-hub-shows'];
 const BOTH = (variant) => [['movies', variant], ['series', variant]];
 const HUB_EXTRAS = [
+  // The library's own Anime row (`{prefix}-anime`, same item ids as My Anime),
+  // so the folder holds exactly what that row holds, absolute numbering and
+  // all. Hide anime takes the folder with it.
+  { id: 'folder-lelibrary-hub-anime', title: 'Anime', sources: [['anime', '']] },
   { id: 'folder-lelibrary-hub-new', title: 'New Releases', sources: BOTH('new') },
   { id: 'folder-lelibrary-hub-added', title: 'Recently Added', sources: BOTH('added') },
   { id: 'folder-lelibrary-hub-top', title: 'Top Rated', sources: BOTH('top') },
@@ -349,7 +357,7 @@ function withHubExtras(collection) {
       // Like Movies and Shows: the folder's own cover is its backdrop.
       ...(art ? { heroBackdropUrl: art.coverImageUrl } : {}),
       catalogSources: extra.sources.map(([kind, variant]) => (
-        { addonId: '', addonUrl: '', catalogId: `${prefix}-${kind}-${variant}`, type: kind === 'movies' ? 'movie' : 'series', genre: '' }
+        { addonId: '', addonUrl: '', catalogId: `${prefix}-${kind}${variant ? `-${variant}` : ''}`, type: kind === 'movies' ? 'movie' : 'series', genre: '' }
       )),
     };
     // In its Hub place: right after the nearest Hub folder that comes before

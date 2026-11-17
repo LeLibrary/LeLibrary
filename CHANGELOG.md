@@ -4,6 +4,12 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ## [6.0.6]
 
+### New
+
+- The LeLibrary Hub has an Anime folder, with a cover and animated tile drawn in the same style as the rest of the Hub art. It holds the same titles as your My Anime row, so an episode you started there is the same episode here.
+
+- Hubs saved before it was added get the new folder on their next push, placed after Shows. Turn Hide anime on and the folder is left out with the rest of your anime.
+
 ### Fixes
 
 - Pokemon packs that number whole eras as one season now match by episode title, including Pokemon Horizons packs numbered S20, instead of landing on another Pokemon series.

@@ -65,7 +65,8 @@ function getLogoUrl(baseUrl: string): string {
   return `${baseUrl}/LeLibrary.png?v=2`;
 }
 
-// Library quality rows (`torbox-movies-4k` ...) that the setup's folders use.
+// Library quality rows (`torbox-movies-4k` ...) and the Anime row
+// (`torbox-anime`) that the setup's folders use.
 function qualityRefsFrom(collections: unknown): string[] {
   const { parseLibraryCatalogId } = require('../library/quality-filter.ts');
   const { withHubExtras } = require('../catalog/collection-plan.ts');
@@ -75,7 +76,10 @@ function qualityRefsFrom(collections: unknown): string[] {
     for (const folder of Array.isArray(collection?.folders) ? collection.folders : []) {
       for (const source of Array.isArray(folder?.catalogSources) ? folder.catalogSources : []) {
         const id = String(source?.catalogId || '');
-        if (parseLibraryCatalogId(id)?.variant) out.add(id);
+        const parsed = parseLibraryCatalogId(id);
+        // The Hub's Anime folder reads `{prefix}-anime` (no variant), the same
+        // row as My Anime: declare it so the folder always has a catalogue.
+        if (parsed && (parsed.variant || parsed.kind === 'anime')) out.add(id);
       }
     }
   }
@@ -138,12 +142,17 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
   // ── Library rows (My Movies / My Series / My Anime) ──
   // buildLibrary('movies') adds just that catalogue type so each row can be
   // reordered or hidden independently in the Edit Catalogues tab.
+  const qualityWanted = new Set(Array.isArray(qualityRefs) ? qualityRefs : []);
   function buildLibrary(type: any) {
     const selected = type === 'movies'
       ? active.some((provider: any) => selectedHomeCatalogs.has(`${providers.PROVIDER_META[provider].cat}-movies`))
       : type === 'series'
         ? active.some((provider: any) => selectedHomeCatalogs.has(`${providers.PROVIDER_META[provider].cat}-series`))
-        : active.some((provider: any) => selectedHomeCatalogs.has(`${providers.PROVIDER_META[provider].cat}-anime`));
+        // The Hub's Anime folder uses `{prefix}-anime`: keep the row available
+        // to it even when it is off Home, the anime row is turned off or the
+        // library looks anime-free (an empty folder beats a broken tab).
+        : active.some((provider: any) => selectedHomeCatalogs.has(`${providers.PROVIDER_META[provider].cat}-anime`)
+          || qualityWanted.has(`${providers.PROVIDER_META[provider].cat}-anime`));
     if (type === 'movies' && config.catalogMovies === false && !selected) return;
     if (type === 'series' && config.catalogSeries === false && !selected) return;
     if (type === 'anime' && config.catalogAnime === false && !selected) return;
@@ -188,7 +197,6 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
   // My Movies / My Shows narrowed to one release quality (same item ids).
   // Declared only when picked as a Home row or used by a folder (the Hub's
   // 4K and HDR folders), so nobody else's manifest grows.
-  const qualityWanted = new Set(Array.isArray(qualityRefs) ? qualityRefs : []);
   function buildQualityRows(type: 'movies' | 'series') {
     const groups = active.length > 1 && separate
       ? active.map((id: any) => providers.PROVIDER_META[id].cat)

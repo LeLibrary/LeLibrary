@@ -240,7 +240,7 @@ test('Hub order, art and database gate for the six shelf folders', () => {
   base.folders.unshift({ id: 'folder-lelibrary-hub-genres', title: 'Genres', catalogSources: [{ catalogId: 'rd-movies-genres', type: 'movie' }] });
   const upgraded = withHubExtras(base);
   assert.deepEqual(upgraded.folders.map((f) => f.id.replace('folder-lelibrary-hub-', '')), [
-    'genres', 'decades', 'world', 'family', 'length', 'movies', 'shows', 'new', 'added', 'top', '4k', 'hdr', 'folder-mine',
+    'genres', 'decades', 'world', 'family', 'length', 'movies', 'shows', 'anime', 'new', 'added', 'top', '4k', 'hdr', 'folder-mine',
   ], 'each new folder follows its nearest earlier Hub folder; moved folders keep their places');
   const length = upgraded.folders.find((f) => f.id === 'folder-lelibrary-hub-length');
   assert.equal(length.title, 'Short or Long');

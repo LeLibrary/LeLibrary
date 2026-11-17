@@ -199,19 +199,22 @@ test('an old Hub gains New Releases right after Shows, with its own art', () => 
   ] };
   const upgraded = withHubExtras(hub);
   assert.deepEqual(upgraded.folders.map((f) => f.id), [
-    'folder-lelibrary-hub-movies', 'folder-lelibrary-hub-shows', 'folder-lelibrary-hub-new',
+    'folder-lelibrary-hub-movies', 'folder-lelibrary-hub-shows', 'folder-lelibrary-hub-anime',
+    'folder-lelibrary-hub-new',
     'folder-lelibrary-hub-added', 'folder-lelibrary-hub-top',
     'folder-lelibrary-hub-4k', 'folder-lelibrary-hub-hdr', 'folder-lelibrary-hub-genres',
     'folder-lelibrary-hub-decades', 'folder-lelibrary-hub-world', 'folder-lelibrary-hub-family', 'folder-lelibrary-hub-length', 'folder-mine',
   ]);
-  const added = upgraded.folders[2];
+  const added = upgraded.folders.find((f) => f.id === 'folder-lelibrary-hub-new');
   assert.equal(added.title, 'New Releases');
   assert.deepEqual(added.catalogSources.map((s) => `${s.type}:${s.catalogId}`), ['movie:torbox-movies-new', 'series:torbox-series-new']);
   assert.equal(added.heroBackdropUrl, '/collection-assets/collections/covers/lelibrary-hub-new-v3.jpg', 'its cover is its backdrop, like Movies / Shows');
   assert.equal(withHubExtras(upgraded), upgraded, 'never added twice');
   // A Hub where the person moved Shows to the end: New Releases follows Shows.
   const moved = withHubExtras({ ...hub, folders: [hub.folders[0], ...hub.folders.slice(2), hub.folders[1]] });
-  assert.deepEqual(moved.folders.slice(-4).map((f) => f.id), ['folder-lelibrary-hub-shows', 'folder-lelibrary-hub-new', 'folder-lelibrary-hub-added', 'folder-lelibrary-hub-top']);
+  const movedAt = moved.folders.findIndex((f) => f.id === 'folder-lelibrary-hub-shows');
+  assert.deepEqual(moved.folders.slice(movedAt, movedAt + 3).map((f) => f.id),
+    ['folder-lelibrary-hub-shows', 'folder-lelibrary-hub-anime', 'folder-lelibrary-hub-new']);
 
   const withDb = compileCollectionPlan({ collections: [hub], integration: 'nuvio', manifestId: 'community.lelibrary.selfhosted', libraryFacts: true });
   const planned = withDb.collections[0].folders.find((f) => f.id === 'folder-lelibrary-hub-new');

@@ -162,6 +162,7 @@ export interface CollectionDoc {
 export const HUB_COLLECTION_ID = 'collection-lelibrary-hub';
 export const HUB_MOVIES_FOLDER_ID = 'folder-lelibrary-hub-movies';
 export const HUB_SHOWS_FOLDER_ID = 'folder-lelibrary-hub-shows';
+export const HUB_ANIME_FOLDER_ID = 'folder-lelibrary-hub-anime';
 
 // Bundled Hub artwork (served from public/collection-assets).
 // Stored absolute (see absoluteUrl): Nuvio clients fetch artwork directly.
@@ -170,6 +171,7 @@ export const HUB_SHOWS_FOLDER_ID = 'folder-lelibrary-hub-shows';
 export const HUB_COVER = '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg';
 export const HUB_MOVIES_COVER = '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg';
 export const HUB_SHOWS_COVER = '/collection-assets/collections/covers/lelibrary-hub-shows-v3.jpg';
+export const HUB_ANIME_COVER = '/collection-assets/collections/covers/lelibrary-hub-anime-v3.jpg';
 export const HUB_NEW_FOLDER_ID = 'folder-lelibrary-hub-new';
 export const HUB_NEW_COVER = '/collection-assets/collections/covers/lelibrary-hub-new-v3.jpg';
 export const HUB_4K_FOLDER_ID = 'folder-lelibrary-hub-4k';
@@ -333,11 +335,11 @@ export function absoluteUrl(origin: string, value: string): string {
   }
 }
 
-// The LeLibrary Hub: My Movies, My Shows, and the same library narrowed to
-// new releases (released or last aired in the last 12 months), recently
-// added (30 days), top rated, 4K and HDR & Dolby Vision (each of those holds
-// movies and shows), then Genres, By Decade, World Cinema, Family Friendly
-// and Short or Long (films only).
+// The LeLibrary Hub: My Movies, My Shows, Anime (the library's own anime row),
+// and the same library narrowed to new releases (released or last aired in the
+// last 12 months), recently added (30 days), top rated, 4K and HDR & Dolby
+// Vision (each of those holds movies and shows), then Genres, By Decade, World
+// Cinema, Family Friendly and Short or Long (films only).
 export function hubCollection(prefix: string, origin: string): CollectionDoc {
   const abs = (path: string) => absoluteUrl(origin, path);
   return {
@@ -372,6 +374,19 @@ export function hubCollection(prefix: string, origin: string): CollectionDoc {
         focusGifUrl: '',
         heroBackdropUrl: abs(HUB_SHOWS_COVER),
         catalogSources: [{ addonId: '', addonUrl: '', catalogId: `${prefix}-series`, type: 'series', genre: '' }],
+      },
+      // Anime is the library's own Anime row, not a shelf: same titles as My
+      // Anime (server: the `anime` catalogue type). Hide anime removes it.
+      {
+        id: HUB_ANIME_FOLDER_ID,
+        title: 'Anime',
+        tileShape: 'LANDSCAPE',
+        hideTitle: false,
+        coverImageUrl: abs(HUB_ANIME_COVER),
+        focusGifEnabled: false,
+        focusGifUrl: '',
+        heroBackdropUrl: abs(HUB_ANIME_COVER),
+        catalogSources: [{ addonId: '', addonUrl: '', catalogId: `${prefix}-anime`, type: 'series', genre: '' }],
       },
       // Genres, By Decade and World Cinema: saved as two genre-less sources;
       // each push fills in one tab per genre / decade / language the library
