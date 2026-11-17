@@ -4,7 +4,7 @@ import { toast } from '@/features/setup/shared/Toast';
 import { TierInstall } from '@/features/setup/shared/tier/TierInstall';
 import { PublishPanel, type PublishCounts } from '@/features/setup/shared/PublishPanel';
 import { DestinationStep, connectionUser } from '@/features/setup/full/DestinationStep';
-import { usePlatformPush } from '@/features/setup/shared/usePlatformPush';
+import { NUVIO_HOME_ORDER_HINT, usePlatformPush } from '@/features/setup/shared/usePlatformPush';
 import { saveSetup } from '@/features/setup/resolver/api';
 import { ReadyConnections } from '@/features/setup/shared/ApiKeysSection';
 import { NuvioPublicModal } from '@/features/setup/full/NuvioPublicModal';
@@ -132,7 +132,7 @@ export function ReviewStep({ password, confirmation, error, onPassword, onConfir
             ? { hint: 'Sign in above to push your Home rows and collections. Your install link below works either way.' }
             : push.libraryPending
               ? { hint: 'Pushed. Your library folders are still being prepared and will appear on their own - nothing else to do.' }
-              : push.pushed ? { hint: 'Pushed. Your saved setup can be pushed again any time.' } : {}),
+              : push.pushed ? { hint: platform === 'nuvio' ? `Pushed. ${NUVIO_HOME_ORDER_HINT}` : 'Pushed. Your saved setup can be pushed again any time.' } : {}),
         }}
         profilePicker={platform === 'nuvio' && profiles.length > 0 ? {
           profiles, value: push.profileId, onChange: (value) => push.setProfileId(value),

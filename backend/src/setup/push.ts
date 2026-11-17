@@ -253,6 +253,37 @@ function nuvioItemKey(addonId: unknown, type: unknown, catalogId: unknown): stri
   return `${addonId}:${type}:${catalogId}`;
 }
 
+// How the plan and a re-read of the profile find one Home entry: collections
+// by their id, catalogue rows by addon, type and catalogue (Nuvio TV's
+// underscore key). Pinned or older records without the catalogue fields still
+// answer to the same key.
+function homeItemMapKey(item: Record<string, unknown> | undefined): string {
+  if (item?.['is_collection'] === true || item?.['isCollection'] === true || item?.['collection_id'] || item?.['collectionId']) {
+    return `collection_${item['collection_id'] || item['collectionId']}`;
+  }
+  return nuvioHomeKey(item?.['addon_id'], item?.['type'], item?.['catalog_id']);
+}
+
+// Every Home entry's key in the order Nuvio reads them (the apps order by the
+// items' `order`, ties broken by list position).
+function orderedHomeKeys(items: Record<string, unknown>[]): string[] {
+  return items
+    .map((item, position) => ({ item, position }))
+    .sort((a, b) => (Number(a.item['order']) || 0) - (Number(b.item['order']) || 0) || a.position - b.position)
+    .map((entry) => homeItemMapKey(entry.item));
+}
+
+// True when every key of `planned` appears in `actual`, in that order. Other
+// addons' rows may sit anywhere between them.
+function homeKeysInOrder(planned: string[], actual: string[]): boolean {
+  let next = 0;
+  for (const key of actual) {
+    if (key === planned[next]) next += 1;
+    if (next >= planned.length) return true;
+  }
+  return planned.length === 0;
+}
+
 // Pull the profiles, flip the target profile off "primary addons", push back.
 // Only when the profile still uses the primary profile's addons: otherwise
 // nothing is written. The push carries the whole freshly pulled list (an older
@@ -534,13 +565,7 @@ function planNuvioHomeItems({ items, manifest, homeRows = [], collections = [], 
   // Nuvio collection Home entries do not have addon/type/catalog fields.
   // Canonicalise them separately so an older, pinned collection record can
   // be replaced instead of surviving under the empty-catalogue key.
-  const homeKey = (item: Record<string, unknown> | undefined): string => {
-    if (item?.['is_collection'] === true || item?.['isCollection'] === true || item?.['collection_id'] || item?.['collectionId']) {
-      return `collection_${item['collection_id'] || item['collectionId']}`;
-    }
-    return nuvioHomeKey(item?.['addon_id'], item?.['type'], item?.['catalog_id']);
-  };
-  const byKey = new Map(items.map((item) => [homeKey(item), item]));
+  const byKey = new Map(items.map((item) => [homeItemMapKey(item), item]));
 
   const orderedHomeRows = (homeRows || [])
     .filter((r) => r?.enabled !== false && r?.source)
@@ -669,7 +694,7 @@ function planNuvioHomeItems({ items, manifest, homeRows = [], collections = [], 
   });
   // Collections always lead Home: LeLibrary's in the setup's order, then any
   // other collection on the profile in the order it has now.
-  const existingKeys = items.map(homeKey).filter((key) => byKey.has(key));
+  const existingKeys = items.map(homeItemMapKey).filter((key) => byKey.has(key));
   const otherCollections = existingKeys.filter((key) => byKey.get(key)?.['is_collection'] === true && !wanted.lead.includes(key));
   const lead = [...wanted.lead, ...otherCollections];
   const desired = wanted.rows;
@@ -705,27 +730,53 @@ function planNuvioHomeItems({ items, manifest, homeRows = [], collections = [], 
   })();
 }
 
+const NUVIO_HOME_PLATFORM = 'home_catalog_shared';
+
+interface NuvioHomeDoc {
+  show_catalog_type?: boolean;
+  hide_unreleased_content?: boolean;
+  items?: Record<string, unknown>[];
+}
+
+// One read of a profile's Home-catalog settings, with malformed entries gone.
+async function pullNuvioHomeDoc(token: string, profileIndex: number): Promise<{ settings: NuvioHomeDoc; items: Record<string, unknown>[] }> {
+  const pulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_home_catalog_settings', {
+    p_profile_id: profileIndex,
+    p_platform: NUVIO_HOME_PLATFORM,
+  }) as { settings_json?: unknown } | unknown[];
+  const row = (Array.isArray(pulled) ? pulled[0] : pulled) as { settings_json?: unknown };
+  const settings = parseNuvioJson(row?.settings_json, {}) as NuvioHomeDoc;
+  return { settings, items: homeSettings.dropMalformedHomeItems(Array.isArray(settings.items) ? settings.items.slice() : []) };
+}
+
+async function writeNuvioHomeDoc(token: string, profileIndex: number, settings: NuvioHomeDoc, items: Record<string, unknown>[], hideUnreleased: boolean | null, uuidKey: string): Promise<void> {
+  await nuvioRpc(token, '/rest/v1/rpc/sync_push_home_catalog_settings', {
+    p_profile_id: profileIndex,
+    p_platform: NUVIO_HOME_PLATFORM,
+    p_settings_json: homeSettings.homeSettingsPayload(settings, items, hideUnreleased),
+    p_origin_client_id: originClientId(uuidKey),
+  });
+}
+
 // Order Nuvio's Home rows to match the manifest catalogue order.
+//
+// The write is read back once: a Nuvio client that had not pulled yet can push
+// its own (older) order while the push runs, and last write wins on Nuvio's
+// side. One re-apply keeps the order the setup asked for; a client that keeps
+// changing it afterwards is never fought beyond that.
 async function syncNuvioHomeOrder(token: string, profileIndex: number, manifest: { id?: string; catalogs?: { type?: string; id?: string; showInHome?: boolean }[] }, homeRows: HomeRowDoc[] = [], collections: { id?: string }[] = [], uuidKey = 'setup', hideUnreleased: boolean | null = null, franchiseSlot: number | null = null): Promise<void> {
   try {
     if (!manifest || !Array.isArray(manifest.catalogs)) return;
-    const platform = 'home_catalog_shared';
-    const pulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_home_catalog_settings', {
-      p_profile_id: profileIndex,
-      p_platform: platform,
-    }) as { settings_json?: unknown } | unknown[];
-    const row = (Array.isArray(pulled) ? pulled[0] : pulled) as { settings_json?: unknown };
-    const settings = parseNuvioJson(row?.settings_json, {}) as { show_catalog_type?: boolean; hide_unreleased_content?: boolean; items?: Record<string, unknown>[] };
-    const items = homeSettings.dropMalformedHomeItems(Array.isArray(settings.items) ? settings.items.slice() : []);
-    const finalItems = planNuvioHomeItems({ items, manifest, homeRows, collections, franchiseSlot });
-
-    await nuvioRpc(token, '/rest/v1/rpc/sync_push_home_catalog_settings', {
-      p_profile_id: profileIndex,
-      p_platform: platform,
-      p_settings_json: homeSettings.homeSettingsPayload(settings, finalItems, hideUnreleased),
-      p_origin_client_id: originClientId(uuidKey),
-    });
+    const before = await pullNuvioHomeDoc(token, profileIndex);
+    const finalItems = planNuvioHomeItems({ items: before.items, manifest, homeRows, collections, franchiseSlot });
+    await writeNuvioHomeDoc(token, profileIndex, before.settings, finalItems, hideUnreleased, uuidKey);
     log('Nuvio Home order synced');
+
+    const after = await pullNuvioHomeDoc(token, profileIndex);
+    const plannedKeys = finalItems.map((item) => homeItemMapKey(item));
+    if (homeKeysInOrder(plannedKeys, orderedHomeKeys(after.items))) return;
+    log('Nuvio Home order changed while the push ran; writing it again');
+    await writeNuvioHomeDoc(token, profileIndex, after.settings, finalItems, hideUnreleased, uuidKey);
   } catch (err) {
     log('Could not sync Nuvio Home order:', (err as Error).message);
   }
@@ -1191,6 +1242,9 @@ export interface PushApi {
   savedNuvioRefreshToken: (data: PushConnection | null | undefined) => string;
   isLeLibraryCollection: (collection: unknown) => boolean;
   nuvioHomeKey: (addonId: unknown, type: unknown, catalogId: unknown) => string;
+  homeItemMapKey: (item: Record<string, unknown> | undefined) => string;
+  orderedHomeKeys: (items: Record<string, unknown>[]) => string[];
+  homeKeysInOrder: (planned: string[], actual: string[]) => boolean;
   refreshNuvioToken: (data: PushConnection) => Promise<{ data: PushConnection; refreshed: boolean }>;
   pullNuvioProfiles: (token: string) => Promise<NuvioProfile[]>;
   resolveNuvioProfile: (profiles: NuvioProfile[], selected: unknown) =>
@@ -1230,6 +1284,9 @@ module.exports = {
   savedNuvioRefreshToken,
   isLeLibraryCollection,
   nuvioHomeKey,
+  homeItemMapKey,
+  orderedHomeKeys,
+  homeKeysInOrder,
   refreshNuvioToken,
   pullNuvioProfiles,
   resolveNuvioProfile,

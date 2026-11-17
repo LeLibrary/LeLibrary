@@ -24,6 +24,11 @@ export interface PlatformPush {
   push: () => Promise<boolean>;
 }
 
+// Nuvio only reads its Home order when the app starts (and, on TV, when the
+// shared settings change). A device that is already open keeps the order it
+// had, which looks like a push that did not move anything.
+export const NUVIO_HOME_ORDER_HINT = 'If Nuvio is already open on a device, restart it or switch profile to see the new Home order.';
+
 // One push implementation for every surface that offers it (the Review step and
 // the post-creation modal), so the two can never drift: seal the connection the
 // setup already holds, then ask the server to install.

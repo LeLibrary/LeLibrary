@@ -477,6 +477,9 @@ export interface HomeRowSource {
   type: 'movie' | 'series';
   addonId: string;
   addonUrl: string;
+  // Display only: the addon's own name, saved when the row was imported
+  // (`com.mdblist.trending-movies` is never shown to the person).
+  addonName?: string;
 }
 
 export interface HomeRowDoc {
@@ -503,6 +506,8 @@ export interface BrowserSource {
   category: string;
   addonId: string;
   addonUrl?: string;
+  // Imported rows only: the addon's display name from its manifest.
+  addonName?: string;
   nativeLibrary?: boolean;
   nativeCollection?: boolean;
   defaultHome?: boolean;
@@ -825,12 +830,30 @@ export function homeRowFromSource(source: BrowserSource, order: number): HomeRow
       type: source.type,
       addonId: source.addonId || '',
       addonUrl: source.addonUrl || '',
+      ...(source.addonName ? { addonName: String(source.addonName).slice(0, 60) } : {}),
     },
     enabled: true,
     limit: 20,
     order,
     customTitle: false,
   };
+}
+
+// What a Home row (or a folder source) says under its name: LeLibrary's own
+// rows, an imported addon's own name when the import saved it, else the
+// addon's host. A raw manifest id ("com.mdblist.trending-movies") is never
+// shown.
+export function sourceAddonLabel(
+  source: Pick<HomeRowSource, 'addonId' | 'addonUrl' | 'addonName'>,
+): string {
+  const name = String(source.addonName || '').trim();
+  if (name) return name.slice(0, 60);
+  if (!source.addonId) return 'LeLibrary';
+  try {
+    const host = new URL(String(source.addonUrl || '')).hostname.replace(/^www\./i, '').toLowerCase();
+    if (host) return host;
+  } catch { /* an imported row with no usable link */ }
+  return 'Imported addon';
 }
 
 // Nuvio renders the franchise as a native collection, never a Home row: strip

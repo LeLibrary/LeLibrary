@@ -4,6 +4,7 @@ import { FolderArt } from '@/features/setup/full/collections/FolderCard';
 import { type BrowserSource,
   absoluteUrl,
   nativeSourceName,
+  sourceAddonLabel,
   sourceDisplayName,
   normalizeTileShape,
   type CatalogSourceRef,
@@ -211,7 +212,7 @@ export function FolderEditorModal({ folder, gifLibrary, names = {}, onSave, onCl
                       <span className="media-type-icon" aria-hidden="true">{source.type === 'series' ? '📺' : '🎬'}</span>
                       <span>
                         <strong data-i18n-preserve>{label}</strong>
-                        <small>{source.type === 'series' ? 'Series' : 'Movies'} · <span data-i18n-preserve>{source.addonId || 'LeLibrary'}</span></small>
+                        <small>{source.type === 'series' ? 'Series' : 'Movies'} · <span data-i18n-preserve>{sourceAddonLabel(source)}</span></small>
                       </span>
                       <button type="button" className="eye-btn" aria-label={`Remove ${label}`} onClick={() => removeSource(index)}>✕</button>
                     </article>

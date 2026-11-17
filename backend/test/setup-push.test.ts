@@ -46,6 +46,60 @@ test('nuvio home keys are underscore-delimited', () => {
   assert.equal(nuvioHomeKey('community.lelibrary', 'movie', 'lib-x'), 'community.lelibrary_movie_lib-x');
 });
 
+test('a re-read of the profile finds each Home entry by the same key', () => {
+  const { homeItemMapKey } = require('../src/setup/push.ts');
+  assert.equal(homeItemMapKey({ addon_id: 'com.mdblist.trending-movies', type: 'movie', catalog_id: 'trending-movies-movie' }),
+    'com.mdblist.trending-movies_movie_trending-movies-movie');
+  // Collections are keyed by id, whatever catalogue fields an older push left.
+  assert.equal(homeItemMapKey({ is_collection: true, collection_id: 'collection-lelibrary-hub' }), 'collection_collection-lelibrary-hub');
+  assert.equal(homeItemMapKey({ collection_id: 'collection-x', addon_id: '', type: '', catalog_id: '' }), 'collection_collection-x');
+});
+
+test('the order a profile holds is read by item order, then list position', () => {
+  const { orderedHomeKeys } = require('../src/setup/push.ts');
+  const items = [
+    { addon_id: 'b', type: 'movie', catalog_id: 'two', order: 2 },
+    { addon_id: 'a', type: 'movie', catalog_id: 'one', order: 1 },
+    { addon_id: 'c', type: 'movie', catalog_id: 'three', order: 1 },
+  ];
+  assert.deepEqual(orderedHomeKeys(items), ['a_movie_one', 'c_movie_three', 'b_movie_two']);
+});
+
+test('a changed Home order is noticed, other addons between our rows are not', () => {
+  const { homeKeysInOrder } = require('../src/setup/push.ts');
+  const planned = ['collection_a', 'x_movie_one', 'y_series_two'];
+  assert.equal(homeKeysInOrder(planned, planned), true);
+  // Another addon's row between ours keeps its place: still our order.
+  assert.equal(homeKeysInOrder(planned, ['collection_a', 'other_movie_z', 'x_movie_one', 'y_series_two']), true);
+  // A row moved above the collections, or one of ours missing: changed.
+  assert.equal(homeKeysInOrder(planned, ['x_movie_one', 'collection_a', 'y_series_two']), false);
+  assert.equal(homeKeysInOrder(planned, ['collection_a', 'x_movie_one']), false);
+  assert.equal(homeKeysInOrder([], []), true);
+});
+
+test('planning the Home order twice changes nothing, so a re-apply is safe', () => {
+  const { planNuvioHomeItems } = require('../src/setup/push.ts');
+  const manifestId = 'community.lelibrary';
+  const manifest = { id: manifestId, catalogs: [{ type: 'movie', id: 'torbox-movies', showInHome: true }] };
+  const homeRows = [
+    {
+      id: 'row-import', title: 'Trending Movies', enabled: true, order: 0, customTitle: false,
+      source: { kind: 'catalog', id: 'trending-movies-movie', catalogId: 'trending-movies-movie', type: 'movie', addonId: 'com.mdblist.trending-movies', addonUrl: 'https://mdblist.com/manifest.json' },
+    },
+    {
+      id: 'row-own', title: 'My Movies', enabled: true, order: 1, customTitle: false,
+      source: { kind: 'catalog', id: 'torbox-movies', catalogId: 'torbox-movies', type: 'movie', addonId: '', addonUrl: '' },
+    },
+  ];
+  const collections = [{ id: 'collection-lelibrary-hub' }, { id: 'collection-mine' }];
+  const once = planNuvioHomeItems({ items: [], manifest, homeRows, collections, franchiseSlot: null });
+  const twice = planNuvioHomeItems({ items: once, manifest, homeRows, collections, franchiseSlot: null });
+  assert.deepEqual(twice, once);
+  // Collections lead, then the imported row, then LeLibrary's own row.
+  assert.deepEqual(once.filter((item) => item.enabled !== false).map((item) => (item.is_collection ? `collection_${item.collection_id}` : item.catalog_id)),
+    ['collection_collection-lelibrary-hub', 'collection_collection-mine', 'trending-movies-movie', 'torbox-movies']);
+});
+
 test('a chosen nuvio profile that is gone fails instead of retargeting profile 1', () => {
   const profiles = [
     { profile_index: 1, name: 'Lewis', uses_primary_addons: true },

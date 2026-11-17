@@ -8,6 +8,7 @@ import {
   isUserListGroup,
   homeCategoryRank,
   homeRowFromSource,
+  sourceAddonLabel,
   normalizeHomeOrder,
   ownedFranchiseMarker,
   sourceKey,
@@ -212,6 +213,7 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
           category: `Imported · ${manifest.name || addonId || 'Addon'}`,
           addonId,
           addonUrl: url,
+          ...(typeof manifest.name === 'string' && manifest.name.trim() ? { addonName: manifest.name.trim().slice(0, 60) } : {}),
         });
       }
       if (!found.length) throw new Error('No movie or series catalogue rows were found.');
@@ -310,7 +312,7 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
                 <strong>{row.title}</strong>
                 <small>
                   <span className={`hr-type is-${row.source?.type === 'series' ? 'series' : 'movie'}`}>{row.source?.type === 'series' ? 'Series' : 'Movies'}</span>
-                  <span data-i18n-preserve>{row.source?.addonId || 'LeLibrary'}</span>
+                  <span data-i18n-preserve>{sourceAddonLabel(row.source)}</span>
                 </small>
               </span>
               <span className="row-move-controls">
@@ -388,7 +390,7 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
                                 <strong data-i18n-preserve>{source.name}</strong>
                                 {source.needsMdblistKey && !hasMdblistKey
                                   ? <small className="hr-needs-key">{setupCopy('Needs an MDBList key', 'Needs an MDBList key')}</small>
-                                  : <small data-i18n-preserve>{source.addonId || 'LeLibrary'}</small>}
+                                  : <small data-i18n-preserve>{source.addonName || source.addonId || 'LeLibrary'}</small>}
                               </span>
                               <span className="add-row-mark" aria-hidden="true">
                                 {active

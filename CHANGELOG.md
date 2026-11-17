@@ -12,6 +12,10 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ### Fixes
 
+- Rows you add to Your Home from another addon now say that addon's name (or its site), never its raw manifest id, in the Home rows list and in folder sources.
+- A Nuvio push now reads the Home order back once and re-applies it if a Nuvio device wrote its own order while the push was running, so the order you set in LeLibrary sticks.
+- After a Nuvio push, the setup pages say that a Nuvio which is already open has to be restarted (or the profile switched) before it shows the new Home order.
+
 - Pokemon packs that number whole eras as one season now match by episode title, including Pokemon Horizons packs numbered S20, instead of landing on another Pokemon series.
 
 - Prevented some anime titles from being matched to unrelated shows when an exact anime title is available.

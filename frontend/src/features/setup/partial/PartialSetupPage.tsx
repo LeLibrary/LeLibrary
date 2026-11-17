@@ -72,7 +72,7 @@ import {
   type NuvioHideUnreleased,
 } from '@/features/setup/shared/nuvio-library';
 import { DestinationStep, connectionUser } from '@/features/setup/full/DestinationStep';
-import { usePlatformPush } from '@/features/setup/shared/usePlatformPush';
+import { NUVIO_HOME_ORDER_HINT, usePlatformPush } from '@/features/setup/shared/usePlatformPush';
 import { toast } from '@/features/setup/shared/Toast';
 import type { PlatformConnection } from '@/features/setup/full/platform-login';
 import { same } from '@/features/setup/shared/same';
@@ -396,7 +396,7 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
               ? { hint: `Choose Stremio or Nuvio and sign in above to push your Home rows. The install link below works either way.` }
               : push.libraryPending
                 ? { hint: 'Pushed. Your library folders are still being prepared and will appear on their own - nothing else to do.' }
-                : push.pushed ? { hint: 'Pushed. Your saved setup can be pushed again any time.' } : {}),
+                : push.pushed ? { hint: platform === 'nuvio' ? `Pushed. ${NUVIO_HOME_ORDER_HINT}` : 'Pushed. Your saved setup can be pushed again any time.' } : {}),
           }}
           replaceOthers={activeConn ? { value: push.replaceOthers, onChange: push.setReplaceOthers } : null}
           regenerate={{

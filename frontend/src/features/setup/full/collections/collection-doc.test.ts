@@ -20,6 +20,7 @@ import { collectionBackdrop,
   normalizeViewMode,
   orderCollections,
   ownedFranchiseMarker,
+  sourceAddonLabel,
   sourceKey,
   type CollectionDoc,
 } from '@/features/setup/shared/collection-doc';
@@ -167,6 +168,23 @@ describe('home rows', () => {
       type: 'movie', addonId: '', addonUrl: '',
     });
     expect(row).toMatchObject({ enabled: true, limit: 20, order: 3, customTitle: false });
+  });
+
+  it('keeps an imported addon name and never shows the raw manifest id', () => {
+    const source = {
+      id: 'import-com.mdblist.trending-movies-movie-trending-movies-movie',
+      catalogId: 'trending-movies-movie', name: 'Trending Movies', type: 'movie' as const,
+      category: 'Imported · MDBList', addonId: 'com.mdblist.trending-movies',
+      addonUrl: 'https://mdblist.com/addon/x/manifest.json', addonName: 'MDBList',
+    };
+    const row = homeRowFromSource(source, 0);
+    expect(row.source.addonName).toBe('MDBList');
+    expect(sourceAddonLabel(row.source)).toBe('MDBList');
+    // A row imported before names were saved falls back to the addon's host.
+    expect(sourceAddonLabel({ addonId: 'com.mdblist.trending-movies', addonUrl: 'https://www.mdblist.com/addon/x/manifest.json' })).toBe('mdblist.com');
+    expect(sourceAddonLabel({ addonId: 'com.example.addon', addonUrl: '' })).toBe('Imported addon');
+    // LeLibrary's own rows keep their label.
+    expect(sourceAddonLabel({ addonId: '', addonUrl: '' })).toBe('LeLibrary');
   });
 
   it('strips franchise rows for nuvio and reorders', () => {

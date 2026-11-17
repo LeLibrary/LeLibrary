@@ -15,6 +15,7 @@ import { RouteSkeleton } from '@/app/RouteSkeleton';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { buildBackup, downloadBackup } from '@/features/setup/shared/setup-backup';
 import { toast } from '@/features/setup/shared/Toast';
+import { NUVIO_HOME_ORDER_HINT } from '@/features/setup/shared/usePlatformPush';
 import { isSetupUuid, rememberSetup } from '@/features/setup/shared/setup-history';
 import { submitWithTurnstile, turnstileReady, type TurnstileControl } from '@/features/setup/shared/turnstile';
 import { TurnstileCheck, useTurnstile } from '@/features/setup/shared/TurnstileCheck';
@@ -465,6 +466,7 @@ export function SetupEditPage() {
       const pushed = await pushSetup(uuid, { platform, ...(platform === 'nuvio' && replaceOthers ? { replace_other_collections: true } : {}) }, token);
       setReplaceOthers(false);
       toast(dirty ? `Saved and pushed to ${name}` : `Pushed to ${name}`);
+      if (platform === 'nuvio') toast(NUVIO_HOME_ORDER_HINT);
       if (pushed.libraryPending) toast('Your library folders are still being prepared and will appear on their own');
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : 'Push failed';
