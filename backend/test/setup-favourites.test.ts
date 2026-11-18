@@ -103,6 +103,33 @@ test('an empty list is empty, with a stable version', async () => {
   assert.deepEqual(await store.list(db, 'nope'), []);
 });
 
+test('held seasons come from the file rows, never from the show\'s episode list', () => {
+  const review = require('../src/library/review.ts');
+  // The 2026-11-18 bug: a library with 17 files in S34 reported S1-S30 complete
+  // because the ownership query joined lib_items to lib_episodes, whose rows all
+  // share the title's entity key. These rows are what lib_items says now.
+  const held = review.heldSeasonsFromRows([
+    { tmdb_id: 4656, season: 34, episodes: 17, packs: 0 },
+  ]);
+  assert.deepEqual([...(held.get(4656) || [])], [{ season: 34, owned: 17, pack: false }]);
+
+  // A season pack names the season and no episode: it holds the season.
+  const packs = review.heldSeasonsFromRows([
+    { tmdb_id: 1396, season: 2, episodes: 0, packs: 1 },
+    { tmdb_id: 1396, season: 1, episodes: 8, packs: 0 },
+  ]);
+  assert.deepEqual([...(packs.get(1396) || [])], [
+    { season: 1, owned: 8, pack: false },
+    { season: 2, owned: 0, pack: true },
+  ]);
+
+  // Nonsense and empty rows never invent a season.
+  assert.equal(review.heldSeasonsFromRows([{ tmdb_id: 1, season: null, episodes: 3 }]).size, 0);
+  assert.equal(review.heldSeasonsFromRows([{ tmdb_id: 1, season: 2, episodes: 0, packs: 0 }]).size, 0);
+  assert.equal(review.heldSeasonsFromRows([]).size, 0);
+  assert.equal(review.heldSeasonsFromRows(null).size, 0);
+});
+
 test('a season length of null or 0 means unknown, never "complete"', () => {
   const review = require('../src/library/review.ts');
   // TMDB has not sent this season yet: the page must say "7 episodes", not

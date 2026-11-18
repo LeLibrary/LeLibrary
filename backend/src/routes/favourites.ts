@@ -173,7 +173,7 @@ function createFavouritesRouter(): { router: Router } {
     const items = (Array.isArray(raw['items']) ? raw['items'] : []).slice(0, MAX_TITLES);
     if (!ctx.scopeId) { res.json({ items: [] }); return; }
     const review = require('../library/review.ts') as ReviewApi;
-    let owned: { mediaType: string; tmdbId: number; owned: boolean; seasons: { season: number; owned: number }[] }[] = [];
+    let owned: { mediaType: string; tmdbId: number; owned: boolean; seasons: { season: number; owned: number; pack: boolean }[] }[] = [];
     try {
       owned = await review.ownedState(ctx.scopeId, items as { tmdbId?: unknown; mediaType?: unknown }[]);
     } catch {
@@ -204,11 +204,17 @@ function createFavouritesRouter(): { router: Router } {
         mediaType: entry.mediaType,
         tmdbId: entry.tmdbId,
         owned: entry.owned,
-        seasons: entry.seasons.map((season) => ({
-          season: season.season,
-          owned: season.owned,
-          total: totals.get(`${entry.tmdbId}:${season.season}`) ?? null,
-        })),
+        seasons: entry.seasons.map((season) => {
+          const total = totals.get(`${entry.tmdbId}:${season.season}`) ?? null;
+          return {
+            season: season.season,
+            // A season pack covers the season; without a known length it is
+            // still complete, which `pack` tells the page.
+            owned: season.pack && total !== null ? total : season.owned,
+            total,
+            pack: season.pack,
+          };
+        }),
       })),
     });
   });

@@ -23,7 +23,9 @@ export interface OwnedEntry {
   mediaType: FavouriteKind;
   tmdbId: number;
   owned: boolean;
-  seasons: { season: number; owned: number; total: number | null }[];
+  // `pack` marks a season held as one season pack: the whole season, even when
+  // its length is unknown.
+  seasons: { season: number; owned: number; total: number | null; pack?: boolean }[];
 }
 
 const AUTH = { authenticated: true } as const;
@@ -138,7 +140,8 @@ export interface HeldSeasons {
   missing: number[];
 }
 
-function isComplete(season: { owned: number; total: number | null }): boolean {
+function isComplete(season: { owned: number; total: number | null; pack?: boolean }): boolean {
+  if (season.pack === true) return true;
   // Only when we know how long the season is AND they hold that many. A missing
   // or zero length means "TMDB has not told us yet", never evidence of a full
   // season: treating it as a number made every held season look complete.
@@ -148,7 +151,8 @@ function isComplete(season: { owned: number; total: number | null }): boolean {
 export function heldSeasons(owned: OwnedEntry | null, numberOfSeasons: number | null = null): HeldSeasons | null {
   if (!owned || !owned.owned) return null;
   if (owned.mediaType === 'movie') return { complete: [], partial: [], missing: [] };
-  const held = owned.seasons.filter((season) => season.season > 0 && season.owned > 0);
+  // A pack row holds the season with no episode count of its own, so it stays.
+  const held = owned.seasons.filter((season) => season.season > 0 && (season.owned > 0 || season.pack === true));
   const complete = held.filter(isComplete).map((season) => season.season);
   const partial = held
     .filter((season) => !isComplete(season))

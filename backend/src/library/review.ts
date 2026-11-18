@@ -366,6 +366,32 @@ function seasonTotal(value: unknown): number | null {
   return Number.isInteger(count) && count > 0 ? count : null;
 }
 
+// Season rows (one per title and season, from lib_items) to what the Releases
+// page needs: the episodes held, and whether a season pack covers the rest.
+// Pure, so the rule is testable without a database.
+function heldSeasonsFromRows(rows: { tmdb_id?: unknown; season?: unknown; episodes?: unknown; packs?: unknown }[]) {
+  const byId = new Map<number, { season: number; owned: number; pack: boolean }[]>();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const id = Number(row?.tmdb_id);
+    // A missing season is not season 0: only a real number counts (Number(null)
+    // is 0, which used to slip a season in).
+    const rawSeason = row?.season;
+    const season = typeof rawSeason === 'number'
+      ? rawSeason
+      : /^[0-9]+$/.test(String(rawSeason ?? '')) ? Number(rawSeason) : NaN;
+    if (!Number.isInteger(id) || !Number.isInteger(season)) continue;
+    const owned = Number(row?.episodes) || 0;
+    const pack = Number(row?.packs) > 0;
+    // A row that names no episode is a season pack: it holds the season.
+    if (owned <= 0 && !pack) continue;
+    const list = byId.get(id) || [];
+    list.push({ season, owned, pack });
+    byId.set(id, list);
+  }
+  for (const list of byId.values()) list.sort((a, b) => a.season - b.season);
+  return byId;
+}
+
 // What this setup holds of a few TMDB titles (the Releases page's ownership
 // line): whether it is in the library at all, and for a series how many
 // episodes are held per season. Counts only: never a name, a file or a link.
@@ -384,21 +410,37 @@ async function ownedState(scopeId: string, entries: { tmdbId?: unknown; mediaTyp
           AND media_type IN ('movie', 'series', 'anime') AND tmdb_id = ANY($2::int[])`,
       [scopeId, ids]
     ),
+    // What this library actually holds, season by season, from its own rows.
+    //
+    // Never from lib_episodes: that table is the show's episode catalogue and
+    // every episode row of a title shares the title's entity key
+    // (`series:<tmdbId>`), so joining lib_items to it multiplied each file by
+    // the whole series and reported seasons nobody had (2026-11-18: a library
+    // with 17 files in S34 reported S1-S30 complete). The item's own
+    // match_meta is the file's own season and episode.
+    //
+    // `packs` counts rows that name the season but no episode (a season pack):
+    // that covers every episode of the season, whatever the file count.
     pool.query(
-      `SELECT i.tmdb_id, e.season, count(DISTINCT e.episode)::int AS owned
-         FROM lib_items i
-         JOIN lib_episodes e ON e.entity_key = i.entity_key
-        WHERE i.scope_id = $1 AND i.removed_at IS NULL AND i.match_status = 'matched'
-          AND i.media_type IN ('series', 'anime') AND i.tmdb_id = ANY($2::int[])
-        GROUP BY i.tmdb_id, e.season`,
+      `SELECT tmdb_id,
+              (match_meta->>'season')::int AS season,
+              count(DISTINCT match_meta->>'episode')
+                FILTER (WHERE coalesce(match_meta->>'episode', '') ~ '^[0-9]+$')::int AS episodes,
+              count(*) FILTER (WHERE coalesce(btrim(match_meta->>'episode'), '') = '')::int AS packs
+         FROM lib_items
+        WHERE scope_id = $1 AND removed_at IS NULL AND match_status = 'matched'
+          AND media_type IN ('series', 'anime') AND tmdb_id = ANY($2::int[])
+          AND coalesce(match_meta->>'season', '') ~ '^[0-9]+$'
+        GROUP BY tmdb_id, (match_meta->>'season')`,
       [scopeId, ids]
     ),
   ]);
-  const byId = new Map<number, { movie: boolean; show: boolean; seasons: { season: number; owned: number }[] }>();
+  const seasonsHeld = heldSeasonsFromRows(episodes as Record<string, unknown>[]);
+  const byId = new Map<number, { movie: boolean; show: boolean; seasons: { season: number; owned: number; pack: boolean }[] }>();
   const bucket = (id: number) => {
     const found = byId.get(id);
     if (found) return found;
-    const fresh = { movie: false, show: false, seasons: [] as { season: number; owned: number }[] };
+    const fresh = { movie: false, show: false, seasons: [] as { season: number; owned: number; pack: boolean }[] };
     byId.set(id, fresh);
     return fresh;
   };
@@ -409,12 +451,7 @@ async function ownedState(scopeId: string, entries: { tmdbId?: unknown; mediaTyp
     if (row['media_type'] === 'movie') entry.movie = true;
     else entry.show = true;
   }
-  for (const row of episodes as Record<string, unknown>[]) {
-    const id = Number(row['tmdb_id']);
-    const season = Number(row['season']);
-    if (!Number.isInteger(id) || !Number.isInteger(season)) continue;
-    bucket(id).seasons.push({ season, owned: Number(row['owned']) || 0 });
-  }
+  for (const [id, seasons] of seasonsHeld) bucket(id).seasons.push(...seasons);
   return wanted.map((entry) => {
     const found = byId.get(entry.tmdbId);
     const heldHere = entry.mediaType === 'movie' ? Boolean(found?.movie) : Boolean(found?.show);
@@ -434,10 +471,11 @@ export interface ReviewApi {
   items: typeof items;
   labels: typeof labels;
   ownedState: typeof ownedState;
+  heldSeasonsFromRows: typeof heldSeasonsFromRows;
   seasonTotal: typeof seasonTotal;
   itemForFix: typeof itemForFix;
   requeue: typeof requeue;
   reasonCode: typeof reasonCode;
 }
 
-module.exports = { summary, stats, items, labels, ownedState, seasonTotal, itemForFix, requeue, reasonCode } satisfies ReviewApi;
+module.exports = { summary, stats, items, labels, ownedState, heldSeasonsFromRows, seasonTotal, itemForFix, requeue, reasonCode } satisfies ReviewApi;

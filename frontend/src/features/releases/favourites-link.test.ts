@@ -74,6 +74,13 @@ describe('what is missing, and how the list reads', () => {
     expect(heldSeasons(series([{ season: 1, owned: 8, total: 8 }]), null)?.missing).toEqual([]);
   });
 
+  it('counts a season pack as whole even when its length is unknown', () => {
+    expect(heldSeasons(series([
+      { season: 1, owned: 0, total: null, pack: true },
+      { season: 2, owned: 10, total: 10 },
+    ]))).toEqual({ complete: [1, 2], partial: [], missing: [] });
+  });
+
   it('compresses a long list into ranges', () => {
     expect(seasonRanges([1, 2, 3, 7, 8, 10])).toEqual([
       { from: 1, to: 3 }, { from: 7, to: 8 }, { from: 10, to: 10 },
