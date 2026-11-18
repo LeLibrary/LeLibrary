@@ -19,7 +19,7 @@
 // resolves: the redirect synthesizes the candidate, validation confirms it.
 const parser = require('../media/parser.ts');
 const tmdb = require('../media/tmdb.ts');
-const { lookupSplitSeason, lookupTitleRedirect, tableVersion } = require('./tables.ts');
+const { lookupSplitSeason, lookupTitleRedirect, lookupSpecialFilm, tableVersion } = require('./tables.ts');
 const { matchEpisodeTitle } = require('./episode-title.ts');
 
 // v5: Latin search runs keep their punctuation; tracker labels and "+" names
@@ -260,6 +260,23 @@ function defaultDeps(tmdbApiKey, layer) {
   };
 }
 
+// Curated Pokemon series identities for releases whose episode title cannot be
+// verified. The S20 numbering belongs to Horizons (verified against the
+// operator's own library), never to the main series' Sun & Moon season 20.
+// Seasons are otherwise taken from the release itself; where a show's season
+// scheme is genuinely unknown (Journeys) we leave the season unset rather than
+// guess an offset. No other title can reach this table.
+function pokemonEra(key, season) {
+  if (key === 'pokemon') {
+    if (season === 20) return { tmdbId: 220150, name: 'Pokémon Horizons', season: 1 };
+    return { tmdbId: 60572, name: 'Pokémon', season: season ?? null };
+  }
+  if (key === 'pokemonxy') return { tmdbId: 60572, name: 'Pokémon', season: season ?? null };
+  if (key === 'pokemonhorizons') return { tmdbId: 220150, name: 'Pokémon Horizons', season: season ?? null };
+  if (key === 'pokemonjourneys') return { tmdbId: 60572, name: 'Pokémon', season: null };
+  return null;
+}
+
 function rankedCandidates(pick, candidates) {
   const out = [];
   const seen = new Set();
@@ -396,6 +413,27 @@ async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbAp
           tmdbId: found.id, tmdbType: 'movie', season: null, seasonStart: null, seasonEnd: null,
           episode: null, episodeEnd: null, title: displayTitle(null, found, info.title),
           year: info.year ?? null, candidate: found,
+        });
+      }
+    }
+
+    // A making-of featurette can be numbered S00E01 under its parent series
+    // while TMDB catalogues it as a film. Season 0 is deliberately absent from
+    // the season-exists table, so only a curated title redirect can reach it.
+    if (mediaType === 'series' && fileSeason === 0) {
+      const special = lookupSpecialFilm(name, info.title, fileSeason);
+      if (special) {
+        tried.push(`special-film:${special.tmdbId}`);
+        const candidate = {
+          id: special.tmdbId,
+          title: special.name || info.title,
+          release_date: special.year ? `${special.year}-01-01` : '',
+        };
+        return canonical({
+          tmdbId: special.tmdbId, tmdbType: 'movie', season: null,
+          seasonStart: null, seasonEnd: null, episode: null, episodeEnd: null,
+          title: displayTitle(special.name, candidate, info.title),
+          year: special.year ?? info.year ?? null, candidate: null,
         });
       }
     }
@@ -552,28 +590,51 @@ async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbAp
     // one series claims that title: never infer an offset or select a
     // similarly named show.
     const pokemonTitles = new Set(['pokemon', 'pokemonxy', 'pokemonjourneys', 'pokemonhorizons']);
-    if (allowEpisodeTitleMapping && isSeries && pokemonTitles.has(compactTitle(info.title)) && info.episode != null
-        && info.episodeEnd == null && typeof d.episodeCatalog === 'function') {
-      const knownPokemonSeries = [[60572, 'Pokémon'], [220150, 'Pokémon Horizons']];
-      const hits = [];
-      let catalogs = 0;
-      for (const [seriesId, fallbackTitle] of knownPokemonSeries) {
-        const videos = await d.episodeCatalog(seriesId).catch(() => []);
-        if (videos.length) catalogs++;
-        const episodeHit = matchEpisodeTitle(name, videos);
-        if (episodeHit) hits.push({ seriesId, fallbackTitle, episodeHit });
+    const pokemonKey = compactTitle(info.title);
+    if (isSeries && pokemonTitles.has(pokemonKey)) {
+      let hits = [];
+      if (allowEpisodeTitleMapping && info.episode != null && info.episodeEnd == null
+          && typeof d.episodeCatalog === 'function') {
+        const knownPokemonSeries = [[60572, 'Pokémon'], [220150, 'Pokémon Horizons']];
+        for (const [seriesId, fallbackTitle] of knownPokemonSeries) {
+          const videos = await d.episodeCatalog(seriesId).catch(() => []);
+          const episodeHit = matchEpisodeTitle(name, videos);
+          if (episodeHit) hits.push({ seriesId, fallbackTitle, episodeHit });
+        }
+        if (hits.length === 1) {
+          const { seriesId, fallbackTitle, episodeHit } = hits[0];
+          const cand = candidates.find((c) => Number(c.id) === seriesId) || null;
+          return { ...canonical({ tmdbId: seriesId, tmdbType: 'series', season: episodeHit.season,
+            seasonStart: null, seasonEnd: null, episode: episodeHit.episode, episodeEnd: null,
+            title: displayTitle(null, cand, fallbackTitle), year: info.year ?? null, candidate: cand }),
+            episodeTitleEvidence: episodeHit.title, mediaTypeOverride: 'anime' };
+        }
+        if (hits.length > 1) return failure('ambiguous-candidate', tried);
       }
-      if (hits.length === 1) {
-        const { seriesId, fallbackTitle, episodeHit } = hits[0];
-        const cand = candidates.find((c) => Number(c.id) === seriesId) || null;
-        return { ...canonical({ tmdbId: seriesId, tmdbType: 'series', season: episodeHit.season,
-          seasonStart: null, seasonEnd: null, episode: episodeHit.episode, episodeEnd: null,
-          title: displayTitle(null, cand, fallbackTitle), year: info.year ?? null, candidate: cand }),
-          episodeTitleEvidence: episodeHit.title, mediaTypeOverride: 'anime' };
+      // The public episode list is capped and does not cover every Pokemon
+      // season, so "no title hit" is not evidence against the series named in
+      // the release. Fall through to a curated exact-series identity using the
+      // release's own numbers instead of stranding RESTORE/RETRY rows. Only an
+      // exact title reaches here; lookalike shows are never substituted.
+      const era = pokemonEra(pokemonKey, info.season);
+      // The curated id is only a fallback for an exact Pokemon title that TMDB
+      // itself confirmed. A lookalike result ("Pokemon sol y luna") is not
+      // enough to hand a release to one of the known series by id.
+      const exactBrand = candidates.some((cand) => queries.some((query) => d.titleScore(query, cand) === 100));
+      if (!exactBrand) return failure('no-candidate', tried);
+      if (era && exactBrand) {
+        let season = era.season;
+        if (season != null) {
+          const check = await checkSeason(d, seasonMemo, era.tmdbId, season, lang);
+          if (check.state === 'missing') season = null;
+        }
+        const cand = candidates.find((c) => Number(c.id) === era.tmdbId) || null;
+        return { ...canonical({ tmdbId: era.tmdbId, tmdbType: 'series', season,
+          seasonStart: null, seasonEnd: null, episode: season == null ? null : info.episode,
+          episodeEnd: null, title: displayTitle(null, cand, era.name),
+          year: info.year ?? null, candidate: cand }),
+          mediaTypeOverride: 'anime', pokemonSourceNumbers: true };
       }
-      // No title evidence (or two series claim it) must never let a similarly
-      // named talk show or the wrong era become a substitute.
-      return failure(hits.length ? 'ambiguous-candidate' : (catalogs ? 'no-candidate' : 'search-unavailable'), tried);
     }
 
     const ranked = rankedCandidates(picked, candidates);

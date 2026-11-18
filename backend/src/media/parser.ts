@@ -54,7 +54,10 @@ function selectFilmYear(value, candidates, techCut) {
   return inRange[0];
 }
 
-const EP_RE = /[Ss](\d{1,2})[Ee](\d{1,2})(?:[-–][Ee]?(\d{1,2})|[Ee](\d{1,2}))?/;
+// Episode numbers are padded to three digits by some sources (Pokemon
+// `S19E049`), so a two-digit limit used to read them as episode 4 and left the
+// last digit behind as an "episode title". Keep ranges three digits too.
+const EP_RE = /[Ss](\d{1,2})[Ee](\d{1,3})(?:[-–][Ee]?(\d{1,3})|[Ee](\d{1,3}))?/;
 
 // Scene "1x02" / "2x13-14" numbering (no S/E prefix). The \b guards keep
 // resolutions ("1920x1080") and codecs ("x264") out: neither offers a word

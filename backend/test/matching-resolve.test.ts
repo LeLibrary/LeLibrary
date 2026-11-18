@@ -496,10 +496,12 @@ test('an exact anime title is not replaced by an unrelated non-anime Pokemon sho
   const main = { id: 60572, name: 'Pokémon' };
   const unrelated = { id: 341532, name: 'Pokemon sol y luna' };
   const d = stubDeps({ candidates: [unrelated, main], counts: { 60572: [{ season: 20, count: 43 }], 341532: [{ season: 20, count: 100 }] }, animeIds: new Set(['60572']) });
+  // S20 is Horizons by curated evidence, so neither the unrelated Sun & Moon
+  // duplicate nor the main series' own season 20 can take the release.
   const series = await resolve.resolveMatch({ name: 'Pokemon.S20E01.1080p', mediaType: 'series' }, d);
-  assert.equal(series.ok, false);
-  assert.equal(series.reason, 'exact-anime-only');
+  assert.equal(series.ok, true);
+  assert.equal(series.tmdbId, 220150);
   const anime = await resolve.resolveMatch({ name: 'Pokemon.S20E01.1080p', mediaType: 'anime' }, d);
   assert.equal(anime.ok, true);
-  assert.equal(anime.tmdbId, 60572);
+  assert.equal(anime.tmdbId, 220150);
 });

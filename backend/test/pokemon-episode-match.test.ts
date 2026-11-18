@@ -21,7 +21,7 @@ function deps(catalog = async (id) => Number(id) === 60572 ? videos : []) {
     pick: (q, c, y) => tmdb.pickBestResult(q, c, y),
     titleScore: tmdb.titleScore,
     isAnimeCandidate: c => !!c.isJapaneseAnimation,
-    seasonCounts: async () => [{ season: 15, count: 58 }, { season: 16, count: 93 }, { season: 19, count: 136 }, { season: 20, count: 159 }],
+    seasonCounts: async () => [{ season: 1, count: 159 }, { season: 15, count: 58 }, { season: 16, count: 93 }, { season: 19, count: 136 }, { season: 20, count: 159 }],
     findEpisode: async () => null,
     episodeCatalog: catalog,
   };
@@ -47,16 +47,25 @@ test('short two-word episode titles still match when the whole title is present'
   assert.equal(matchEpisodeTitle('Pokemon.S20E14.1080p.mkv', [{ season: 1, episode: 14, name: 'Fly! Wattrel!' }]), null);
 });
 
-test('mapping never uses an unrelated show or guesses when metadata is absent', async () => {
+test('without episode titles an exact brand uses the curated era, never an unrelated show', async () => {
   const r = await resolveMatch({ name: 'Pokemon.S20E03.1080p', mediaType: 'series', allowEpisodeTitleMapping: true }, deps(async () => []));
-  assert.equal(r.ok, false);
-  assert.equal(r.reason, 'search-unavailable');
+  assert.equal(r.ok, true);
+  // S20 releases are Horizons, not the main series' Sun & Moon season or the
+  // duplicate TMDB 341532. No episode-title evidence is claimed.
+  assert.equal(r.tmdbId, 220150);
+  assert.equal(r.season, 1);
+  assert.equal(r.episode, 3);
+  assert.equal(r.episodeTitleEvidence, undefined);
 });
 
 test('episode title mapping is opt-in and handles accented titles', async () => {
   assert.equal(matchEpisodeTitle('Pokémon.S16E03.Lete.dAmelie.et.Pikachu.mkv', [{ season: 1, episode: 2, name: "L'été d'Amélie et Pikachu" }]).episode, 2);
   const r = await resolveMatch({ name: 'Pokemon.S16E03.A.Marvellous.Journey.Begins.1080p.mkv', mediaType: 'series' }, deps());
-  assert.equal(r.ok, false);
+  // With the flag off the release still matches its exact series by source
+  // number, but the title-derived season 15 is never used.
+  assert.equal(r.ok, true);
+  assert.equal(r.episodeTitleEvidence, undefined);
+  assert.equal(r.season, 16);
 });
 
 
@@ -67,10 +76,11 @@ test('Pokemon Horizons packs numbered as one season map by title, not by offset'
   assert.equal(result.episodeTitleEvidence, "Don't Give Up, Crocalor!");
 });
 
-test('missing or duplicated episode-title evidence never guesses numbered Pokemon episodes', async () => {
+test('missing episode titles use the curated series; an unconfirmed brand never guesses', async () => {
   const noTitle = await resolveMatch({ name: 'Pokemon.S20E03.1080p', mediaType: 'anime', allowEpisodeTitleMapping: true }, pokemonDeps());
-  assert.equal(noTitle.ok, false);
-  assert.equal(noTitle.reason, 'no-candidate');
+  assert.equal(noTitle.ok, true);
+  assert.equal(noTitle.tmdbId, 220150);
+  assert.equal(noTitle.episodeTitleEvidence, undefined);
   const missingMain = deps(); missingMain.search = async () => [wrong];
   const wrongShow = await resolveMatch({ name: 'Pokemon.S20E03.1080p', mediaType: 'series', allowEpisodeTitleMapping: true }, missingMain);
   assert.equal(wrongShow.ok, false);
@@ -120,6 +130,31 @@ test('historical Pokemon review selects only affected rows and runs once', { ski
     await client.query("UPDATE lib_items SET match_version='processed' WHERE match_version='pokemon-title-review-1'");
     await client.query(migration);
     result = await client.query("SELECT count(*)::int AS n FROM lib_items WHERE match_version='pokemon-title-review-1'");
+    assert.equal(result.rows[0].n, 0);
+  } finally {
+    await client.query('ROLLBACK');
+    await client.end();
+  }
+});
+
+test('source-number review re-queues failed and wrong-era Pokemon rows only once', { skip: !process.env.LIBRARY_TEST_DATABASE_URL }, async () => {
+  const { Client } = require('pg');
+  const { MIGRATIONS } = require('../src/library/db.ts');
+  const client = new Client({ connectionString: process.env.LIBRARY_TEST_DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('CREATE TEMP TABLE lib_data_migrations (name text primary key)');
+    await client.query('CREATE TEMP TABLE lib_items (name text, removed_at timestamptz, match_status text, match_error text, match_version text, tmdb_id integer, season integer)');
+    await client.query("INSERT INTO lib_items VALUES ('Pokemon.S17E21.RESTORE',NULL,'failed','no-candidate','old',NULL,17),('Pokemon S20',NULL,'matched',NULL,'old',341532,20),('Pokemon S21',NULL,'matched',NULL,'old',60572,21),('Other',NULL,'failed','no-candidate','old',NULL,NULL)");
+    const migration = MIGRATIONS.find(sql => sql.includes("VALUES ('pokemon-source-numbers-review-1')"));
+    assert.ok(migration);
+    await client.query(migration);
+    let result = await client.query("SELECT count(*)::int AS n FROM lib_items WHERE match_version='pokemon-source-numbers-review-1'");
+    assert.equal(result.rows[0].n, 2);
+    await client.query("UPDATE lib_items SET match_version='processed' WHERE match_version='pokemon-source-numbers-review-1'");
+    await client.query(migration);
+    result = await client.query("SELECT count(*)::int AS n FROM lib_items WHERE match_version='pokemon-source-numbers-review-1'");
     assert.equal(result.rows[0].n, 0);
   } finally {
     await client.query('ROLLBACK');

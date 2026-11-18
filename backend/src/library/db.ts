@@ -174,6 +174,20 @@ const MIGRATIONS = [
      AND lower(name) ~ 'pok[eé]mon'
      AND (match_status IN ('failed','skipped')
        OR (match_status = 'matched' AND (tmdb_id IN (341532, 80652) OR (tmdb_id = 60572 AND season = 20))))`,
+  // Source-number recovery: RESTORE/RETRY rows with no episode title now fall
+  // through to the exact series (S20 -> Horizons, other seasons -> the main
+  // series) and three-digit episode numbers parse correctly. One pass over
+  // those failures and the known wrong-era matches. Owner fixes still win;
+  // failOrKeep preserves a stored match when a re-check finds no replacement.
+  `WITH migration AS (
+     INSERT INTO lib_data_migrations (name) VALUES ('pokemon-source-numbers-review-1')
+     ON CONFLICT DO NOTHING RETURNING name
+   )
+   UPDATE lib_items SET match_version = 'pokemon-source-numbers-review-1'
+   WHERE EXISTS (SELECT 1 FROM migration) AND removed_at IS NULL
+     AND lower(name) ~ 'pok[eé]mon'
+     AND (match_status IN ('failed','skipped')
+       OR (match_status = 'matched' AND (tmdb_id IN (341532, 80652) OR (tmdb_id = 60572 AND season = 20))))`,
   `ALTER TABLE lib_scopes ADD COLUMN IF NOT EXISTS identity_version integer NOT NULL DEFAULT 0`,
   `UPDATE lib_scopes SET last_success_at = last_sync_at
      WHERE last_success_at IS NULL AND last_status = 'ok' AND last_sync_at IS NOT NULL`,
