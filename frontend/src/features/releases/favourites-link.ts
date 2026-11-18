@@ -132,16 +132,45 @@ export function useOwned(entry: { mediaType: FavouriteKind; tmdbId: number } | n
 export interface HeldSeasons {
   complete: number[];
   partial: { season: number; owned: number; total: number | null }[];
+  // Seasons the show has that the setup does not hold at all. Only filled when
+  // the caller knows how many the show has, which is what stops a page saying
+  // "in your library" for a show whose latest seasons are missing.
+  missing: number[];
 }
 
-export function heldSeasons(owned: OwnedEntry | null): HeldSeasons | null {
+function isComplete(season: { owned: number; total: number | null }): boolean {
+  // Only when we know how long the season is AND they hold that many. A missing
+  // or zero length means "TMDB has not told us yet", never evidence of a full
+  // season: treating it as a number made every held season look complete.
+  return season.total !== null && season.total > 0 && season.owned >= season.total;
+}
+
+export function heldSeasons(owned: OwnedEntry | null, numberOfSeasons: number | null = null): HeldSeasons | null {
   if (!owned || !owned.owned) return null;
-  if (owned.mediaType === 'movie') return { complete: [], partial: [] };
+  if (owned.mediaType === 'movie') return { complete: [], partial: [], missing: [] };
   const held = owned.seasons.filter((season) => season.season > 0 && season.owned > 0);
-  if (!held.length) return { complete: [], partial: [] };
-  const complete = held.filter((season) => season.total !== null && season.owned >= season.total).map((season) => season.season);
+  const complete = held.filter(isComplete).map((season) => season.season);
   const partial = held
-    .filter((season) => season.total === null || season.owned < season.total)
+    .filter((season) => !isComplete(season))
     .map((season) => ({ season: season.season, owned: season.owned, total: season.total }));
-  return { complete, partial };
+  const have = new Set(held.map((season) => season.season));
+  const missing: number[] = [];
+  const total = Number(numberOfSeasons);
+  if (Number.isInteger(total) && total > 0 && total <= 200) {
+    for (let season = 1; season <= total; season += 1) if (!have.has(season)) missing.push(season);
+  }
+  return { complete, partial, missing };
+}
+
+// 1,2,3,7,8 becomes 1-3,7-8: a 30-season show must not read as a wall of
+// numbers, and the ranges keep the line short on a phone.
+export function seasonRanges(seasons: number[]): { from: number; to: number }[] {
+  const sorted = [...new Set(seasons.filter((season) => Number.isInteger(season) && season > 0))].sort((a, b) => a - b);
+  const ranges: { from: number; to: number }[] = [];
+  for (const season of sorted) {
+    const last = ranges[ranges.length - 1];
+    if (last && season === last.to + 1) last.to = season;
+    else ranges.push({ from: season, to: season });
+  }
+  return ranges;
 }

@@ -67,6 +67,7 @@ export function FavouritesSection({ uuid, editToken, locked = false }: {
   const [loaded, setLoaded] = useState(false);
   const [pairings, setPairings] = useState<FavouritesPairing[]>([]);
   const [pairCode, setPairCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const searchRun = useRef(0);
 
@@ -146,6 +147,29 @@ export function FavouritesSection({ uuid, editToken, locked = false }: {
       setPairCode(made.code);
     } catch (err: unknown) {
       setError(err instanceof ApiError ? err.message : 'A code could not be made.');
+    }
+  }
+
+  // Clipboard with a fallback for a plain-http host (the Clipboard API needs a
+  // secure context; the operator's own dev box may not be one).
+  async function copyCode(code: string) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(code);
+      else {
+        const field = document.createElement('textarea');
+        field.value = code;
+        field.setAttribute('readonly', '');
+        field.style.position = 'fixed';
+        field.style.opacity = '0';
+        document.body.appendChild(field);
+        field.select();
+        document.execCommand('copy');
+        document.body.removeChild(field);
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('The code could not be copied. Select it and copy it by hand.');
     }
   }
 
@@ -251,20 +275,50 @@ export function FavouritesSection({ uuid, editToken, locked = false }: {
         </ul>
       )}
 
-      <h3 className="qs-sub"><strong>Releases page</strong><span>Link a browser to this setup</span></h3>
-      <p className="setup-hint">
-        Make a code, then type it on the Releases page. That browser can then keep this list and show
-        what you already hold. It never gets your install link, and Unlink stops it from here.
-      </p>
-      <div className="fav-pair-actions">
-        <button type="button" className="btn-ghost" disabled={locked} onClick={() => { void makeCode(); }}>
-          Connect the releases page
-        </button>
-        {pairCode && <code className="fav-pair-code">{pairCode}</code>}
+      <div className="fav-pair">
+        <div className="fav-pair-head">
+          <span className="fav-pair-mark" aria-hidden="true">🔗</span>
+          <span className="fav-pair-title">
+            <strong>Releases page</strong>
+            <small>Link a browser to this setup</small>
+          </span>
+          <a className="fav-pair-link" href="/releases" target="_blank" rel="noreferrer">
+            Open Releases
+            <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+        {pairCode ? (
+          <>
+            <div className="fav-code">
+              <span className="fav-code-value" aria-label={pairCode}>{pairCode}</span>
+              <button
+                type="button" className={copied ? 'fav-copy is-done' : 'fav-copy'}
+                onClick={() => { void copyCode(pairCode); }}
+              >
+                <span aria-hidden="true">{copied ? '✓' : '⧉'}</span>
+                {copied ? 'Copied' : 'Copy code'}
+              </button>
+            </div>
+            <p className="setup-hint">
+              Paste it on the Releases page. It works once, for ten minutes. That browser can then keep
+              this list and show what you already hold; it never gets your install link, and Unlink
+              stops it from here.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="setup-hint">
+              Make a code, then type it on the Releases page. That browser can then keep this list and
+              show what you already hold. It never gets your install link, and Unlink stops it from here.
+            </p>
+            <div className="fav-pair-actions">
+              <button type="button" className="btn-ghost" disabled={locked} onClick={() => { void makeCode(); }}>
+                Connect the releases page
+              </button>
+            </div>
+          </>
+        )}
       </div>
-      {pairCode && (
-        <p className="setup-hint">Give this code to the Releases page. It works once, for ten minutes.</p>
-      )}
       {pairings.length === 0 ? (
         <p className="setup-hint">No browsers are linked right now.</p>
       ) : (

@@ -1998,6 +1998,11 @@
     "Clear all? Click again to confirm.": "¿Borrar todos? Pulsa otra vez para confirmar.",
     "A code could not be made.": "No se pudo crear un código.",
     "That browser could not be cut off.": "No se pudo desvincular ese navegador.",
-    "Your favourites could not be cleared.": "No se pudieron borrar tus favoritos."
+    "Your favourites could not be cleared.": "No se pudieron borrar tus favoritos.",
+    "Open Releases": "Abrir estrenos",
+    "Copy code": "Copiar código",
+    "Copied": "Copiado",
+    "The code could not be copied. Select it and copy it by hand.": "No se pudo copiar el código. Selecciónalo y cópialo a mano.",
+    "Paste it on the Releases page. It works once, for ten minutes. That browser can then keep this list and show what you already hold; it never gets your install link, and Unlink stops it from here.": "Pégalo en la página de estrenos. Funciona una vez, durante diez minutos. Ese navegador podrá guardar esta lista y mostrarte lo que ya tienes; nunca recibe tu enlace de instalación, y puedes desvincularlo desde aquí."
   }
 }

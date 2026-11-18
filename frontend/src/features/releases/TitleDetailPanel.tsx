@@ -157,7 +157,12 @@ export function TitleDetailPanel({ region, type, id }: { region: RegionCode; typ
               {detail.type === 'tv' && detail.networks.slice(0, 2).map((network) => <span key={network} className="rel-chip">{network}</span>)}
               {detail.genres.slice(0, 4).map((genre) => <span key={genre} className="rel-chip">{genre}</span>)}
             </div>
-            <TitleOwnership mediaType={detail.type === 'movie' ? 'movie' : 'series'} tmdbId={detail.id} title={detail.title} />
+            <TitleOwnership
+              mediaType={detail.type === 'movie' ? 'movie' : 'series'}
+              tmdbId={detail.id}
+              title={detail.title}
+              numberOfSeasons={detail.type === 'tv' ? detail.numberOfSeasons : null}
+            />
             {detail.overview && <p className="rel-overview">{detail.overview}</p>}
           </div>
         </div>

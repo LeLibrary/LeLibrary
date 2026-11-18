@@ -198,13 +198,17 @@
       "linkedEmpty": "Aún no hay favoritos",
       "unlink": "Desvincular",
       "inLibrary": "En tu biblioteca",
-      "complete": "{{seasons}} completa",
+      "complete": "Completas: {{seasons}}",
       "partial": "{{season}} {{owned}} de {{total}}",
-      "partialUnknown": "{{season}} {{owned}} episodios",
+      "partialUnknown": "{{season}} tiene {{owned}} episodios",
       "notInLibrary": "No está en tu biblioteca",
       "star": "Añadir a favoritos",
       "starred": "En favoritos",
-      "unstar": "Quitar de favoritos"
+      "unstar": "Quitar de favoritos",
+      "seasonShort": "T{{season}}",
+      "inLibrarySome": "Tienes {{held}} de {{total}} temporadas",
+      "partialEpisodes": "{{season}} tiene {{owned}} de {{total}} episodios",
+      "missing": "No está en tu biblioteca: {{seasons}}"
     }
   },
   "home": {

@@ -358,6 +358,14 @@ async function labels(scopeId: string, entries: { tmdbId?: unknown; mediaType?: 
   }));
 }
 
+// How many episodes a season has, or null when TMDB has not told us. A stored
+// null or 0 means "not fetched yet", never "a zero-episode season": treating it
+// as a number made every held season look complete on the Releases page.
+function seasonTotal(value: unknown): number | null {
+  const count = Number(value);
+  return Number.isInteger(count) && count > 0 ? count : null;
+}
+
 // What this setup holds of a few TMDB titles (the Releases page's ownership
 // line): whether it is in the library at all, and for a series how many
 // episodes are held per season. Counts only: never a name, a file or a link.
@@ -426,9 +434,10 @@ export interface ReviewApi {
   items: typeof items;
   labels: typeof labels;
   ownedState: typeof ownedState;
+  seasonTotal: typeof seasonTotal;
   itemForFix: typeof itemForFix;
   requeue: typeof requeue;
   reasonCode: typeof reasonCode;
 }
 
-module.exports = { summary, stats, items, labels, ownedState, itemForFix, requeue, reasonCode } satisfies ReviewApi;
+module.exports = { summary, stats, items, labels, ownedState, seasonTotal, itemForFix, requeue, reasonCode } satisfies ReviewApi;

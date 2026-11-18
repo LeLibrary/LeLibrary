@@ -193,7 +193,8 @@ function createFavouritesRouter(): { router: Router } {
             [seriesIds]
           );
           for (const row of rows as Record<string, unknown>[]) {
-            totals.set(`${Number(row['show_tmdb_id'])}:${Number(row['season_number'])}`, Number(row['episode_count']) || 0);
+            const total = review.seasonTotal(row['episode_count']);
+            if (total !== null) totals.set(`${Number(row['show_tmdb_id'])}:${Number(row['season_number'])}`, total);
           }
         }
       } catch { /* no totals: the counts still answer */ }

@@ -103,6 +103,20 @@ test('an empty list is empty, with a stable version', async () => {
   assert.deepEqual(await store.list(db, 'nope'), []);
 });
 
+test('a season length of null or 0 means unknown, never "complete"', () => {
+  const review = require('../src/library/review.ts');
+  // TMDB has not sent this season yet: the page must say "7 episodes", not
+  // "complete". This is the bug that made a show with 7 of 10 look full.
+  assert.equal(review.seasonTotal(null), null);
+  assert.equal(review.seasonTotal(undefined), null);
+  assert.equal(review.seasonTotal(0), null);
+  assert.equal(review.seasonTotal(''), null);
+  assert.equal(review.seasonTotal('nope'), null);
+  assert.equal(review.seasonTotal(-3), null);
+  assert.equal(review.seasonTotal(10), 10);
+  assert.equal(review.seasonTotal('12'), 12);
+});
+
 // ── The Hub folder ───────────────────────────────────────────────────────
 
 test('the Hub gains a Favourites folder that points at the personal rows', () => {

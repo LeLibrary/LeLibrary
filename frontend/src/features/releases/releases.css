@@ -368,3 +368,7 @@
 .rel-owned-seasons { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100%; }
 .rel-owned-chip { padding: 4px 9px; border: 1px solid rgba(255,255,255,.14); border-radius: 999px; font-size: .7rem; color: rgba(255,255,255,.72); }
 .rel-owned-chip.is-full { border-color: rgba(110,231,168,.4); color: #b9f5d2; }
+/* A season they are part-way through, and the seasons they have none of: both
+   must be read before the "complete" line, so they get their own colour. */
+.rel-owned-gap { color: rgba(255, 199, 120, .92); }
+.rel-owned-missing-line { color: rgba(255, 255, 255, .62); }

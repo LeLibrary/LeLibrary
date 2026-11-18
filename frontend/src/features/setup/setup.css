@@ -1934,6 +1934,25 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
 .fav-meta small { font-size: 0.7rem; color: var(--muted); }
 .fav-remove, .fav-star { white-space: nowrap; }
 .fav-star:disabled { opacity: 0.55; }
-.fav-pair-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 10px 0 8px; }
-.fav-pair-code { padding: 8px 14px; border: 1px solid rgba(255,255,255,.22); border-radius: 10px; background: rgba(0,0,0,.35); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1rem; letter-spacing: .22em; }
+/* The Releases page card: one framed block, so the code reads as a thing you
+   take somewhere rather than another line of copy. */
+.fav-pair { margin: 16px 0 18px; padding: 14px 16px 4px; border: 1px solid var(--border); border-radius: 16px; background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.012)); }
+.fav-pair-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fav-pair-mark { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; background: rgba(255,255,255,.06); font-size: .9rem; }
+.fav-pair-title { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 160px; }
+.fav-pair-title strong { font-size: .86rem; }
+.fav-pair-title small { font-size: .72rem; color: var(--muted); }
+.fav-pair-link { display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border: 1px solid var(--border); border-radius: 999px; color: inherit; font-size: .74rem; text-decoration: none; }
+.fav-pair-link:hover { border-color: rgba(255,255,255,.3); background: rgba(255,255,255,.05); }
+.fav-pair .setup-hint { margin: 4px 0 12px; }
+.fav-code { display: flex; align-items: stretch; gap: 8px; margin: 12px 0 4px; flex-wrap: wrap; }
+.fav-code-value { flex: 1 1 auto; min-width: 0; padding: 11px 16px; border: 1px solid rgba(255,255,255,.22); border-radius: 12px; background: rgba(0,0,0,.4); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.1rem; letter-spacing: .3em; text-align: center; user-select: all; }
+.fav-copy { display: inline-flex; align-items: center; gap: 7px; padding: 0 18px; border: 1px solid rgba(255,255,255,.22); border-radius: 12px; background: rgba(255,255,255,.07); color: inherit; font: inherit; font-size: .8rem; cursor: pointer; }
+.fav-copy:hover { background: rgba(255,255,255,.11); }
+.fav-copy.is-done { border-color: rgba(110,231,168,.55); background: rgba(110,231,168,.14); }
+.fav-pair-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 10px 0 12px; }
 .fav-pair-badge { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: rgba(255,255,255,.05); }
+@media (max-width: 520px) {
+  .fav-code-value { font-size: 1rem; letter-spacing: .24em; padding: 11px 10px; }
+  .fav-copy { flex: 1 1 100%; justify-content: center; padding: 10px 16px; }
+}
