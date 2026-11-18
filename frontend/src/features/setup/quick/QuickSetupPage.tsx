@@ -26,6 +26,7 @@ import { useEditSnapshot, type EditMode } from '@/features/setup/shared/edit-mod
 import { EMPTY_QUICK_EXTRAS, QuickExtrasFields, type QuickExtras, quickExtrasChips } from '@/features/setup/full/MetadataExtras';
 import { useCreateSetup } from '@/features/setup/shared/useCreateSetup';
 import { LibraryRowsCard } from '@/features/setup/shared/LibraryRowsSection';
+import { FavouritesSection } from '@/features/setup/shared/FavouritesSection';
 import { OptionsCard } from '@/features/setup/shared/OptionsCard';
 import { EMPTY_LIBRARY_ROWS, libraryRowsToConfig, type LibraryRowsDraft } from '@/features/setup/shared/library-rows';
 import { useRestoreToast } from '@/features/setup/shared/Toast';
@@ -45,6 +46,7 @@ export const QUICK_SECTION_IDS = [
   'providers',
   'artwork',
   'stream-look',
+  'favourites',
   'password',
 ] as const;
 
@@ -210,6 +212,7 @@ export function QuickSetupPage({ edit, previewOpen }: { edit?: EditMode; preview
     { id: 'providers', label: 'Library', done: connected.length > 0 && hasTmdb },
     { id: 'artwork', label: 'Artwork', done: false },
     { id: 'stream-look', label: 'Playback', done: false },
+    { id: 'favourites', label: 'Favourites', done: false },
     { id: 'password', label: 'Install', done: passwordReady },
   ], [connected.length, hasTmdb, passwordReady]);
 
@@ -293,6 +296,10 @@ export function QuickSetupPage({ edit, previewOpen }: { edit?: EditMode; preview
           <OptionsCard label="Library options" chips={quickExtrasChips(extras)}>
             <QuickExtrasFields draft={extras} onChange={setExtras} />
           </OptionsCard>
+        </TierStep>
+
+        <TierStep id="favourites" title="Favourites" lede="Keep the films and shows you care about in one place. They show in the Hub's Favourites folder and on the Releases page.">
+          <FavouritesSection uuid={edit?.uuid ?? null} editToken={edit?.editToken ?? null} locked={edit?.locked === true} />
         </TierStep>
 
         {edit ? (

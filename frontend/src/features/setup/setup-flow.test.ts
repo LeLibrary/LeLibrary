@@ -28,7 +28,7 @@ describe('setup tiers', () => {
 describe('tier sections', () => {
   it('gives each tier its own sub-headed sections', () => {
     expect([...QUICK_SECTION_IDS]).toEqual([
-      'providers', 'artwork', 'stream-look', 'password',
+      'providers', 'artwork', 'stream-look', 'favourites', 'password',
     ]);
     // 5.9: Settle In and Move In are a few pages, with one accordion Setup page.
     expect([...PARTIAL_SECTION_IDS]).toEqual(['connect', 'setup', 'home-rows', 'password']);

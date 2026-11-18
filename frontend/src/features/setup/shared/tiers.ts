@@ -23,8 +23,9 @@ export const TIERS: TierDefinition[] = [
       'Connect TorBox, Real-Debrid, AllDebrid or Premiumize',
       'Match titles and choose your poster artwork',
       'Set how your library streams look',
+      'Keep your favourites, and link the Releases page',
     ],
-    steps: 4,
+    steps: 5,
   },
   {
     id: 'partial',

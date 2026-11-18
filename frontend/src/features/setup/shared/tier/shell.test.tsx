@@ -65,7 +65,7 @@ describe('the shell on every tier', () => {
       expect(html).toContain('class="ts-foot"');
       expect(html).toContain('class="ts-side"');
       expect(html).toContain('>Draft<');
-      const count = tier === 'quick' ? 4 : tier === 'partial' ? PARTIAL_SECTIONS.length : FULL_SECTIONS.length;
+      const count = tier === 'quick' ? 5 : tier === 'partial' ? PARTIAL_SECTIONS.length : FULL_SECTIONS.length;
       expect(html.match(/class="qs-rail-step( |")/g)?.length ?? 0).toBe(count);
       expect(html).toContain(` · Step 1 of ${count}`);
       // The old chrome is gone: no dock, no inline wizard nav, no hero.

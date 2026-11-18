@@ -22,13 +22,13 @@ describe('quick look reference layout', () => {
     // Top bar: back to the setup types, the name placeholder, Step N of M.
     expect(html).toContain('class="ts-top"');
     expect(html).toContain('New setup');
-    expect(html).toContain('<span>Quick Look</span> · Step 1 of 4');
+    expect(html).toContain('<span>Quick Look</span> · Step 1 of 5');
     expect(html).toContain('aria-label="All setup types"');
     expect(html).not.toContain('Open full editor');
     // Step tabs (scroll mode) with one stop per step; no hero, no numerals.
     expect(html).toContain('qs-progress');
     expect(html).not.toContain('setup-rail');
-    expect(html.match(/class="qs-rail-step( |")/g)?.length ?? 0).toBe(4);
+    expect(html.match(/class="qs-rail-step( |")/g)?.length ?? 0).toBe(5);
     expect(html).not.toContain('qs-hero');
     expect(html).not.toContain('flow-num');
     expect(html).toContain('aria-label="About this page"');
