@@ -104,6 +104,9 @@ mountAddonRoutes(app, { resolveConfig });
 // v5.5 setup surface (create / unlock / save / rotate). Registered with the
 // other API routers so the SPA shell, mounted below, never claims it.
 mountSetupRoutes(app, { editSessions: setupEditSessions });
+// The Releases page's scoped session (v6.1): a paired cookie, never a setup
+// link. Mounted with the other API routers so the SPA shell cannot claim it.
+require('./src/routes/favourites.ts').mountFavouritesRoutes(app);
 mountSetupConnectionRoutes(app, { editSessions: setupEditSessions });
 mountSetupNuvioRoutes(app, { editSessions: setupEditSessions });
 mountSetupLibraryRoutes(app, { editSessions: setupEditSessions });

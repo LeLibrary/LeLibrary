@@ -167,6 +167,10 @@ const HUB_FOLDER_ART: Record<string, { coverImageUrl: string; focusGifUrl: strin
     coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-anime-v3.jpg',
     focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-anime-focus-v3.gif',
   },
+  'folder-lelibrary-hub-favourites': {
+    coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-favourites-v3.jpg',
+    focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-favourites-focus-v3.gif',
+  },
   'folder-lelibrary-hub-new': {
     coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-new-v3.jpg',
     focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-new-focus-v3.gif',
@@ -218,11 +222,20 @@ const HUB_FOLDER_ART: Record<string, { coverImageUrl: string; focusGifUrl: strin
 const HUB_ID = 'collection-lelibrary-hub';
 const HUB_ORDER = ['folder-lelibrary-hub-movies', 'folder-lelibrary-hub-shows'];
 const BOTH = (variant) => [['movies', variant], ['series', variant]];
+// The Favourites folder is the one Hub folder whose sources are not built from
+// the provider prefix: they are the setup's own personal rows.
+const HUB_FAVOURITES_SOURCES = [
+  { addonId: '', addonUrl: '', catalogId: 'lelibrary-user-favourites-movie', type: 'movie', genre: '' },
+  { addonId: '', addonUrl: '', catalogId: 'lelibrary-user-favourites-series', type: 'series', genre: '' },
+];
 const HUB_EXTRAS = [
   // The library's own Anime row (`{prefix}-anime`, same item ids as My Anime),
   // so the folder holds exactly what that row holds, absolute numbering and
   // all. Hide anime takes the folder with it.
   { id: 'folder-lelibrary-hub-anime', title: 'Anime', sources: [['anime', '']] },
+  // Their own picks (v6.1): the personal rows, filled from their library list.
+  // A favourite they no longer hold simply does not appear.
+  { id: 'folder-lelibrary-hub-favourites', title: 'Favourites', sources: [], catalogSources: HUB_FAVOURITES_SOURCES },
   { id: 'folder-lelibrary-hub-new', title: 'New Releases', sources: BOTH('new') },
   { id: 'folder-lelibrary-hub-added', title: 'Recently Added', sources: BOTH('added') },
   { id: 'folder-lelibrary-hub-top', title: 'Top Rated', sources: BOTH('top') },
@@ -250,6 +263,8 @@ const HUB_TABBED = new Set([HUB_GENRES_ID, HUB_WORLD_ID, HUB_DECADES_ID]);
 // left out without it (their rows are never declared).
 const HUB_NEEDS_FACTS = new Set([
   'folder-lelibrary-hub-new', 'folder-lelibrary-hub-added', 'folder-lelibrary-hub-top',
+  // Favourites are their library rows, narrowed: no database, no rows.
+  'folder-lelibrary-hub-favourites',
   HUB_DECADES_ID, HUB_WORLD_ID, 'folder-lelibrary-hub-family', 'folder-lelibrary-hub-length',
 ]);
 // A genre gets a tab once the library owns this many of its titles; a small
@@ -356,9 +371,11 @@ function withHubExtras(collection) {
       focusGifEnabled: true,
       // Like Movies and Shows: the folder's own cover is its backdrop.
       ...(art ? { heroBackdropUrl: art.coverImageUrl } : {}),
-      catalogSources: extra.sources.map(([kind, variant]) => (
-        { addonId: '', addonUrl: '', catalogId: `${prefix}-${kind}${variant ? `-${variant}` : ''}`, type: kind === 'movies' ? 'movie' : 'series', genre: '' }
-      )),
+      catalogSources: Array.isArray((extra as { catalogSources?: unknown[] }).catalogSources)
+        ? (extra as { catalogSources: Record<string, unknown>[] }).catalogSources.map((source) => ({ ...source }))
+        : extra.sources.map(([kind, variant]) => (
+          { addonId: '', addonUrl: '', catalogId: `${prefix}-${kind}${variant ? `-${variant}` : ''}`, type: kind === 'movies' ? 'movie' : 'series', genre: '' }
+        )),
     };
     // In its Hub place: right after the nearest Hub folder that comes before
     // it (New Releases after Shows, 4K after New Releases...), else last.
@@ -456,7 +473,22 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
     if (hideAnime && isAnimeSource(source)) return { ...normalized, catalogId: '' };
     const own = isLeLibrarySource(source, manifestId);
     if (placement === 'home' && own) selectedCatalogIds.add(normalized.catalogId);
-    if (own && /^lelibrary-user-/.test(normalized.catalogId)) {
+    // The setup's own Favourites rows (v6.1): personal like the list rows
+    // below, but filled from their library instead of an outside service, so
+    // they need no service to be connected.
+    const favourites = /^lelibrary-user-favourites-(movie|series)$/.exec(normalized.catalogId);
+    if (own && favourites) {
+      const type = favourites[1] === 'movie' ? 'movie' : 'series';
+      normalized.type = type;
+      const known = userListRows.get(normalized.catalogId);
+      userListRows.set(normalized.catalogId, {
+        catalogId: normalized.catalogId,
+        type,
+        title: 'Favourites',
+        home: Boolean(known?.home) || placement === 'home',
+        folder: Boolean(known?.folder) || placement === 'folder',
+      });
+    } else if (own && /^lelibrary-user-/.test(normalized.catalogId)) {
       const { parseUserListId } = require('../user-lists/rows.ts');
       const ref = parseUserListId(normalized.catalogId);
       if (!ref) {

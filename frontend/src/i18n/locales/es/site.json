@@ -185,7 +185,27 @@
     "dateLabel": "Fecha",
     "tmdbAttribution": "Este producto utiliza la API de TMDB, pero TMDB no lo patrocina ni certifica.",
     "documentTitle": "Calendario de estrenos | LeLibrary",
-    "episodeRun": "{{count}} episodios"
+    "episodeRun": "{{count}} episodios",
+    "favourites": {
+      "linkTitle": "Tu configuración en esta página",
+      "linkHint": "Abre tu página de configuración, entra en Favoritos y crea un código. Se tarda un minuto y puedes cortarlo desde ahí cuando quieras.",
+      "codePlaceholder": "Código",
+      "link": "Vincular",
+      "linkError": "Ese código no es válido o ha caducado. Crea otro en tu página de configuración.",
+      "linked": "Vinculado a tu configuración",
+      "linkedCount_one": "{{count}} favorito",
+      "linkedCount_other": "{{count}} favoritos",
+      "linkedEmpty": "Aún no hay favoritos",
+      "unlink": "Desvincular",
+      "inLibrary": "En tu biblioteca",
+      "complete": "{{seasons}} completa",
+      "partial": "{{season}} {{owned}} de {{total}}",
+      "partialUnknown": "{{season}} {{owned}} episodios",
+      "notInLibrary": "No está en tu biblioteca",
+      "star": "Añadir a favoritos",
+      "starred": "En favoritos",
+      "unstar": "Quitar de favoritos"
+    }
   },
   "home": {
     "title": "Tu biblioteca debrid,",

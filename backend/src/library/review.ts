@@ -330,13 +330,105 @@ async function stats(scopeId: string): Promise<LibraryStats> {
   return out;
 }
 
+// Names and posters for a list of TMDB ids (the Setup page's Favourites list):
+// one query, only titles this scope actually holds. Series answers come back
+// whatever the stored kind is, because anime lives under its own media_type.
+async function labels(scopeId: string, entries: { tmdbId?: unknown; mediaType?: unknown }[] = []) {
+  const ids = [...new Set((Array.isArray(entries) ? entries : [])
+    .map((entry) => Number(entry?.tmdbId))
+    .filter((id) => Number.isInteger(id) && id > 0))].slice(0, 400);
+  if (!ids.length) return [];
+  const pool = await store.ensure();
+  const { rows } = await pool.query(
+    `SELECT DISTINCT ON (media_type, tmdb_id) media_type, tmdb_id,
+            match_meta->>'name' AS title, match_meta->>'releaseInfo' AS year,
+            match_meta->>'poster' AS poster
+       FROM lib_items
+      WHERE scope_id = $1 AND removed_at IS NULL AND match_status = 'matched'
+        AND media_type IN ('movie', 'series', 'anime')
+        AND tmdb_id = ANY($2::int[])`,
+    [scopeId, ids]
+  );
+  return (rows as Record<string, unknown>[]).map((row) => ({
+    mediaType: row['media_type'] === 'movie' ? 'movie' as const : 'series' as const,
+    tmdbId: Number(row['tmdb_id']),
+    title: typeof row['title'] === 'string' ? row['title'] : '',
+    year: typeof row['year'] === 'string' && row['year'] ? row['year'].slice(0, 4) : null,
+    poster: posterOrNull(row['poster']),
+  }));
+}
+
+// What this setup holds of a few TMDB titles (the Releases page's ownership
+// line): whether it is in the library at all, and for a series how many
+// episodes are held per season. Counts only: never a name, a file or a link.
+async function ownedState(scopeId: string, entries: { tmdbId?: unknown; mediaType?: unknown }[] = []) {
+  const wanted = (Array.isArray(entries) ? entries : [])
+    .map((entry) => ({ mediaType: entry?.mediaType === 'movie' ? 'movie' as const : 'series' as const, tmdbId: Number(entry?.tmdbId) }))
+    .filter((entry) => Number.isInteger(entry.tmdbId) && entry.tmdbId > 0)
+    .slice(0, 50);
+  if (!wanted.length) return [];
+  const ids = [...new Set(wanted.map((entry) => entry.tmdbId))];
+  const pool = await store.ensure();
+  const [{ rows: held }, { rows: episodes }] = await Promise.all([
+    pool.query(
+      `SELECT DISTINCT tmdb_id, media_type FROM lib_items
+        WHERE scope_id = $1 AND removed_at IS NULL AND match_status = 'matched'
+          AND media_type IN ('movie', 'series', 'anime') AND tmdb_id = ANY($2::int[])`,
+      [scopeId, ids]
+    ),
+    pool.query(
+      `SELECT i.tmdb_id, e.season, count(DISTINCT e.episode)::int AS owned
+         FROM lib_items i
+         JOIN lib_episodes e ON e.entity_key = i.entity_key
+        WHERE i.scope_id = $1 AND i.removed_at IS NULL AND i.match_status = 'matched'
+          AND i.media_type IN ('series', 'anime') AND i.tmdb_id = ANY($2::int[])
+        GROUP BY i.tmdb_id, e.season`,
+      [scopeId, ids]
+    ),
+  ]);
+  const byId = new Map<number, { movie: boolean; show: boolean; seasons: { season: number; owned: number }[] }>();
+  const bucket = (id: number) => {
+    const found = byId.get(id);
+    if (found) return found;
+    const fresh = { movie: false, show: false, seasons: [] as { season: number; owned: number }[] };
+    byId.set(id, fresh);
+    return fresh;
+  };
+  for (const row of held as Record<string, unknown>[]) {
+    const id = Number(row['tmdb_id']);
+    if (!Number.isInteger(id)) continue;
+    const entry = bucket(id);
+    if (row['media_type'] === 'movie') entry.movie = true;
+    else entry.show = true;
+  }
+  for (const row of episodes as Record<string, unknown>[]) {
+    const id = Number(row['tmdb_id']);
+    const season = Number(row['season']);
+    if (!Number.isInteger(id) || !Number.isInteger(season)) continue;
+    bucket(id).seasons.push({ season, owned: Number(row['owned']) || 0 });
+  }
+  return wanted.map((entry) => {
+    const found = byId.get(entry.tmdbId);
+    const heldHere = entry.mediaType === 'movie' ? Boolean(found?.movie) : Boolean(found?.show);
+    return {
+      mediaType: entry.mediaType,
+      tmdbId: entry.tmdbId,
+      owned: heldHere,
+      // Specials (season 0) are kept: the Releases page decides what to show.
+      seasons: entry.mediaType === 'series' && found ? found.seasons.sort((a, b) => a.season - b.season) : [],
+    };
+  });
+}
+
 export interface ReviewApi {
   summary: typeof summary;
   stats: typeof stats;
   items: typeof items;
+  labels: typeof labels;
+  ownedState: typeof ownedState;
   itemForFix: typeof itemForFix;
   requeue: typeof requeue;
   reasonCode: typeof reasonCode;
 }
 
-module.exports = { summary, stats, items, itemForFix, requeue, reasonCode } satisfies ReviewApi;
+module.exports = { summary, stats, items, labels, ownedState, itemForFix, requeue, reasonCode } satisfies ReviewApi;

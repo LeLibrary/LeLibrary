@@ -455,6 +455,17 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
     const services = userListServices(config);
     const seenIds = new Set<string>();
     for (const entry of Array.isArray(userListRows) ? userListRows : []) {
+      // Favourites (v6.1) are personal rows served from the library, not from
+      // an outside service, so they need no connection: always declared.
+      const favourite = /^lelibrary-user-favourites-(movie|series)$/.exec(String(entry?.catalogId || ''));
+      if (favourite) {
+        if (seenIds.has(entry.catalogId)) continue;
+        seenIds.add(entry.catalogId);
+        const row: LooseConfig = { id: entry.catalogId, type: favourite[1], name: 'Favourites', extra: CAT_EXTRA };
+        if (integration === 'nuvio' && homeManaged && !selectedHomeCatalogs.has(entry.catalogId)) row.showInHome = false;
+        catalogs.push(row);
+        continue;
+      }
       const ref = parseUserListId(entry?.catalogId);
       if (!ref || ref.alias || !services[ref.provider] || seenIds.has(entry.catalogId)) continue;
       seenIds.add(entry.catalogId);

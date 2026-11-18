@@ -23,6 +23,9 @@ const express = require('express') as typeof import('express');
 const runtime = require('../setup/runtime.ts') as RuntimeApi;
 const configStore = require('../setup/config-store.ts') as ConfigStoreApi;
 const token = require('../setup/token.ts') as TokenApi;
+import type { FavouritesApi } from '../setup/favourites-store.ts';
+import type { FavouritesPairingApi } from '../setup/favourites-pairing.ts';
+import type { ReviewApi } from '../library/review.ts';
 const editSessionsModule = require('../setup/edit-sessions.ts') as EditSessionsApi;
 const oauth = require('../setup/oauth.ts') as OAuthApi;
 const selfhostAccess = require('../platform/selfhost-access.ts') as SelfhostAccessApi;
@@ -31,7 +34,7 @@ const { rateLimit } = require('../middleware/rate-limit.ts') as {
   rateLimit: (options?: { windowMs?: number; max?: number; scope?: string }) => any;
 };
 
-const { getSetupStore, getSetupLimiter } = runtime;
+const { getSetupStore, getSetupPool, getSetupLimiter } = runtime;
 // One bucket set for the Preview (read-only, but it compiles a manifest and
 // the collection plan per call).
 const previewLimit = rateLimit({ windowMs: 60_000, max: 30 });
@@ -577,6 +580,126 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       console.warn(`[setup] key reveal: uuid=${uuid.slice(0, 8)} service=${(req.body as { service?: unknown } | undefined)?.service}`);
       res.json({ service: (req.body as { service?: unknown } | undefined)?.service, key: decided.key });
     });
+
+  // ── Favourites (v6.1) ────────────────────────────────────────────────
+  // The person's own shortlist, stored beside their setup row and served as
+  // library rows (the Hub's Favourites folder points at them). Editing needs
+  // the same authority as the rest of the editor: a matching bearer session.
+  // The rows hold a TMDB id and a kind only; nothing here is ever logged.
+  router.get('/:uuid/favourites', async (req: Request, res: Response) => {
+    const store = await withStore(res);
+    if (!store) return;
+    const uuid = String(req.params.uuid || '').toLowerCase();
+    if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
+    if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    const pool = getSetupPool();
+    if (!pool) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
+    const favourites = require('../setup/favourites-store.ts') as FavouritesApi;
+    const items = await favourites.list(pool, uuid);
+    // Labels (name, year, poster) for the panel: their own library only, one
+    // query. A favourite whose file is gone keeps its row and shows no label.
+    let labels: { mediaType: string; tmdbId: number; title: string; year: string | null; poster: string | null }[] = [];
+    try {
+      const opened = await store.resolveByUuid(uuid);
+      const engine = require('../library/engine.ts');
+      if (opened && engine.isIndexed()) {
+        const config = store.toEngineConfig(opened);
+        const scopeId = require('../providers/index.ts').getUserKey(config);
+        labels = await (require('../library/review.ts') as ReviewApi).labels(scopeId, items);
+      }
+    } catch { /* the ids are the answer; labels are a convenience */ }
+    const labelled = items.map((item) => {
+      const hit = labels.find((entry) => entry.tmdbId === item.tmdbId && (entry.mediaType === item.mediaType
+        || (item.mediaType === 'series' && entry.mediaType === 'series')));
+      return { ...item, title: hit?.title || '', year: hit?.year || null, poster: hit?.poster || null };
+    });
+    res.json({ items: labelled, limit: favourites.MAX_FAVOURITES });
+  });
+
+  router.post('/:uuid/favourites', async (req: Request, res: Response) => {
+    const store = await withStore(res);
+    if (!store) return;
+    const uuid = String(req.params.uuid || '').toLowerCase();
+    if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
+    if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    const pool = getSetupPool();
+    if (!pool) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
+    const favourites = require('../setup/favourites-store.ts') as FavouritesApi;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const result = await favourites.add(pool, uuid, body['mediaType'], body['tmdbId']);
+    if (result === 'invalid') { res.status(400).json({ error: 'Invalid favourite' }); return; }
+    if (result === 'full') { res.status(409).json({ error: `You can keep up to ${favourites.MAX_FAVOURITES} favourites` }); return; }
+    res.json({ saved: true, created: result === 'added' });
+  });
+
+  router.delete('/:uuid/favourites/:mediaType/:tmdbId', async (req: Request, res: Response) => {
+    const store = await withStore(res);
+    if (!store) return;
+    const uuid = String(req.params.uuid || '').toLowerCase();
+    if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
+    if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    const pool = getSetupPool();
+    if (!pool) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
+    const favourites = require('../setup/favourites-store.ts') as FavouritesApi;
+    const removed = await favourites.remove(pool, uuid, req.params.mediaType, req.params.tmdbId);
+    res.json({ removed });
+  });
+
+  // A short code for the Releases page (v6.1): ten minutes, single use, shown
+  // once. The page redeems it for a scoped cookie (setup/favourites-pairing.ts)
+  // so the install link is never typed into a website.
+  router.post('/:uuid/favourites/pair', rateLimit({ windowMs: 10 * 60_000, max: 10 }), async (req: Request, res: Response) => {
+    const store = await withStore(res);
+    if (!store) return;
+    const uuid = String(req.params.uuid || '').toLowerCase();
+    if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
+    const opened = await store.resolveByUuid(uuid);
+    if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
+    if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    const pairing = require('../setup/favourites-pairing.ts') as FavouritesPairingApi;
+    const made = pairing.createCode(uuid);
+    if (!made) { res.status(503).json({ error: 'Could not make a code. Try again.' }); return; }
+    res.json({ code: made.code, expiresAt: made.expiresAt });
+  });
+
+  // Which browsers are linked to this setup, so one can be cut off.
+  router.get('/:uuid/favourites/pairings', async (req: Request, res: Response) => {
+    const store = await withStore(res);
+    if (!store) return;
+    const uuid = String(req.params.uuid || '').toLowerCase();
+    if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
+    if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    const pool = getSetupPool();
+    if (!pool) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
+    const pairing = require('../setup/favourites-pairing.ts') as FavouritesPairingApi;
+    res.json({ pairings: await pairing.list(pool, uuid) });
+  });
+
+  router.delete('/:uuid/favourites/pairings/:pairingId', async (req: Request, res: Response) => {
+    const store = await withStore(res);
+    if (!store) return;
+    const uuid = String(req.params.uuid || '').toLowerCase();
+    if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
+    if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    const pool = getSetupPool();
+    if (!pool) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
+    const pairing = require('../setup/favourites-pairing.ts') as FavouritesPairingApi;
+    res.json({ revoked: await pairing.revoke(pool, uuid, req.params.pairingId) });
+  });
+
+  // Clear the whole list. Kept here (not on the paired cookie) so the owner's
+  // own browser is the one that decides.
+  router.post('/:uuid/favourites/clear', async (req: Request, res: Response) => {
+    const store = await withStore(res);
+    if (!store) return;
+    const uuid = String(req.params.uuid || '').toLowerCase();
+    if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
+    if (!authorizeEdit(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    const pool = getSetupPool();
+    if (!pool) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
+    const favourites = require('../setup/favourites-store.ts') as FavouritesApi;
+    res.json({ cleared: await favourites.clear(pool, uuid) });
+  });
 
   // Save an edit. A matching edit session is required; the secret never changes here.
   router.put('/:uuid', async (req: Request, res: Response) => {

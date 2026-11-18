@@ -4,6 +4,7 @@ import { MoviesTab } from '@/features/releases/MoviesTab';
 import { TvTab } from '@/features/releases/TvTab';
 import { SearchTab } from '@/features/releases/SearchTab';
 import { TMDBAttribution } from '@/features/releases/TMDBAttribution';
+import { ReleasesFavouritesLink } from '@/features/releases/ReleasesFavouritesLink';
 import { useRegion } from '@/features/releases/use-region';
 import '@/features/releases/releases.css';
 import { PosterWall } from '@/features/setup/shared/tier/TierChrome';
@@ -75,6 +76,8 @@ export function ReleasesPage() {
           </div>
         </div>
       </header>
+
+      <ReleasesFavouritesLink />
 
       <div className="rel-tabs" role="tablist" aria-label={t('releases.views')}>
         {TABS.map((entry) => (

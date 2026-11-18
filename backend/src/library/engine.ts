@@ -587,12 +587,13 @@ function warmCatalogPosters() {}
 // Coalesce identical concurrent catalog reads (a Nuvio burst on one page).
 const catalogInFlight = new Map();
 
-function catalogFingerprint({ userKey, type, sortBy, skip, libraryIdMode, provider, enhance, hideAnime = false, variant = null, filters = null }) {
+function catalogFingerprint({ userKey, type, sortBy, skip, libraryIdMode, provider, enhance, hideAnime = false, variant = null, filters = null, favourites = null }) {
   const raw = JSON.stringify({
     userKey, type, sortBy, skip, libraryIdMode, provider, enhance,
     ...(hideAnime ? { hideAnime: true } : {}),
     ...(filters ? { filters } : {}),
     ...(variant ? { variant } : {}),
+    ...(favourites ? { favourites } : {}),
   });
   return require('crypto').createHash('sha1').update(raw).digest('hex');
 }
@@ -732,6 +733,78 @@ async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip 
       metrics.request('catalogIndexed');
       warmCatalogPosters(config, metas);
       return { metas, syncing: !!rec?.syncing, indexed: true, ready };
+    })().finally(() => catalogInFlight.delete(fingerprint));
+    catalogInFlight.set(fingerprint, pending);
+  }
+  return pending;
+}
+
+// The Favourites rows (the Hub's Favourites folder, and the personal rows a
+// setup can pick as Home rows): this setup's own list, served as library rows.
+// Every title comes from their library, so metas, streams and watch progress
+// match My Movies / My Shows, a title whose file is gone drops out on its own,
+// and a favourite of a show shows whatever episodes they hold.
+//
+// Order: the setup's own library sort, narrowed to the picks (the folder reads
+// like their library, not like a separate list).
+async function buildFavouritesCatalog({ token, config, type, sortBy = 'data_adicao', skip = 0, libraryIdMode, lang = 'en-US', enhance = {}, provider = null, trace = null }) {
+  const userKey = providers.getUserKey(config);
+  noteConfig(token, config);
+  const rec = registry.get(userKey);
+  if (rec) rec.lastRequestAt = Date.now();
+  const ready = !!rec?.lastSyncAt;
+  const contentFilters = require('../catalog/content-filters.ts');
+  const filterState = contentFilters.normalizeContentFilters(config);
+  const favourites = require('../setup/favourites-store.ts');
+  const runtime = require('../setup/runtime.ts');
+  const uuid = config.__configScope?.type === 'config' ? config.__configScope.uuid : null;
+  let favouriteIds = new Set();
+  let favouriteVersion = '0:0';
+  if (uuid && isIndexed()) {
+    try {
+      // getSetupStore also runs the setup migrations, so the table exists.
+      await runtime.getSetupStore();
+      const pool = runtime.getSetupPool();
+      if (pool) {
+        const set = await favourites.setForCatalog(pool, uuid);
+        favouriteIds = type === 'movie' ? set.movie : set.series;
+        favouriteVersion = set.version;
+      }
+    } catch (err) {
+      console.warn(`[favourites] list failed: ${err.message}`);
+      return { metas: [], syncing: !!rec?.syncing, indexed: true, cached: false, ready };
+    }
+  }
+  // Nothing starred: an empty row, never a library read.
+  if (!favouriteIds.size) return { metas: [], syncing: !!rec?.syncing, indexed: true, cached: false, ready };
+  const filterKind = type === 'movie' ? 'movies' : 'series';
+  const fingerprint = catalogFingerprint({
+    userKey, type, sortBy, skip, libraryIdMode, provider, enhance,
+    filters: filterState.hideAdult || filterState.excludeCategories.length ? filterState : null,
+    favourites: favouriteVersion,
+  });
+  const resultKey = catalogResultKey(userKey, rec?.catalogFp || 0, rec?.identityVersion ?? 0, fingerprint);
+  const cachedMetas = await cache.get(resultKey).catch(() => null);
+  if (Array.isArray(cachedMetas)) {
+    metrics.request('catalogIndexed');
+    return { metas: cachedMetas, syncing: !!rec?.syncing, indexed: true, cached: true, ready };
+  }
+  let pending = catalogInFlight.get(fingerprint);
+  if (!pending) {
+    pending = (async () => {
+      let rows = await store.catalogRows(userKey, type, provider);
+      rows = rows.filter((row) => favouriteIds.has(Number(row.tmdb_id)));
+      // The same content filters the library rows get (Hide anime, categories,
+      // adult) so favourites never show something the library hides.
+      rows = await catalog.filterRows(rows, { ...filterState, hideAnime: filterState.hideAnime }, filterKind);
+      const metas = await catalog.buildFromRows(rows, {
+        userKey, sortBy, skip, limit: 50, type, libraryIdMode,
+        tmdbApiKey: config.tmdbApiKey, lang, enhance, trace,
+      });
+      await cache.set(resultKey, metas, catalogTtl()).catch(() => {});
+      metrics.request('catalogIndexed');
+      warmCatalogPosters(config, metas);
+      return { metas, syncing: !!rec?.syncing, indexed: true, cached: false, ready };
     })().finally(() => catalogInFlight.delete(fingerprint));
     catalogInFlight.set(fingerprint, pending);
   }
@@ -887,6 +960,7 @@ module.exports = {
   drainOnce,
   enrichOnce,
   buildCatalog,
+  buildFavouritesCatalog,
   search,
   hydrateOwnedIndex,
   noteProjectionChange,

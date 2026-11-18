@@ -30,6 +30,7 @@ import { toast } from '@/features/setup/shared/Toast';
 import { HomeRowsSection } from '@/features/setup/full/HomeRowsSection';
 import { useCustomAddonActions, type CustomAddonRef } from '@/features/setup/shared/custom-addons';
 import { ContentFiltersSection } from '@/features/setup/shared/ContentFiltersSection';
+import { FavouritesSection } from '@/features/setup/shared/FavouritesSection';
 import { contentFilterSummaryParts } from '@/features/setup/shared/content-filters';
 import { EMPTY_LIBRARY_ROWS, withLibraryRowNames, type LibraryRowsDraft } from '@/features/setup/shared/library-rows';
 import { folderSourceCount, hubPrefix, normalizeHomeOrder, ownedFranchiseMarker, OWNED_DEFAULT_TITLE, type CollectionDoc, type HomeRowDoc } from '@/features/setup/shared/collection-doc';
@@ -480,6 +481,9 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
             />
             <Accordion title="Content filters" icon="🎛️" summary={contentFilterSummaryParts(meta)}>
               <ContentFiltersSection draft={meta} onChange={setMeta} />
+            </Accordion>
+            <Accordion title="Favourites" icon="⭐" desc="Your own picks from your library.">
+              <FavouritesSection uuid={edit?.uuid ?? null} editToken={edit?.editToken ?? null} locked={edit?.locked === true} />
             </Accordion>
             <Accordion title="Streams" icon="🎚️"
               summary={[...filterSummaryParts(filterSets).slice(0, 2), addons.length + customAddons.length > 0 ? 'Extra sources on' : 'Library only']}>

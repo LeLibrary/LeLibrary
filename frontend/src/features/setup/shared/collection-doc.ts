@@ -163,6 +163,7 @@ export const HUB_COLLECTION_ID = 'collection-lelibrary-hub';
 export const HUB_MOVIES_FOLDER_ID = 'folder-lelibrary-hub-movies';
 export const HUB_SHOWS_FOLDER_ID = 'folder-lelibrary-hub-shows';
 export const HUB_ANIME_FOLDER_ID = 'folder-lelibrary-hub-anime';
+export const HUB_FAVOURITES_FOLDER_ID = 'folder-lelibrary-hub-favourites';
 
 // Bundled Hub artwork (served from public/collection-assets).
 // Stored absolute (see absoluteUrl): Nuvio clients fetch artwork directly.
@@ -172,6 +173,7 @@ export const HUB_COVER = '/collection-assets/collections/covers/lelibrary-hub-mo
 export const HUB_MOVIES_COVER = '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg';
 export const HUB_SHOWS_COVER = '/collection-assets/collections/covers/lelibrary-hub-shows-v3.jpg';
 export const HUB_ANIME_COVER = '/collection-assets/collections/covers/lelibrary-hub-anime-v3.jpg';
+export const HUB_FAVOURITES_COVER = '/collection-assets/collections/covers/lelibrary-hub-favourites-v3.jpg';
 export const HUB_NEW_FOLDER_ID = 'folder-lelibrary-hub-new';
 export const HUB_NEW_COVER = '/collection-assets/collections/covers/lelibrary-hub-new-v3.jpg';
 export const HUB_4K_FOLDER_ID = 'folder-lelibrary-hub-4k';
@@ -336,7 +338,7 @@ export function absoluteUrl(origin: string, value: string): string {
 }
 
 // The LeLibrary Hub: My Movies, My Shows, Anime (the library's own anime row),
-// and the same library narrowed to new releases (released or last aired in the
+// Favourites (their own picks) and the same library narrowed to new releases (released or last aired in the
 // last 12 months), recently added (30 days), top rated, 4K and HDR & Dolby
 // Vision (each of those holds movies and shows), then Genres, By Decade, World
 // Cinema, Family Friendly and Short or Long (films only).
@@ -387,6 +389,23 @@ export function hubCollection(prefix: string, origin: string): CollectionDoc {
         focusGifUrl: '',
         heroBackdropUrl: abs(HUB_ANIME_COVER),
         catalogSources: [{ addonId: '', addonUrl: '', catalogId: `${prefix}-anime`, type: 'series', genre: '' }],
+      },
+      // Favourites: their own picks, kept on the setup (server:
+      // setup/favourites-store.ts). Served from their library rows, so it holds
+      // what they actually have and nothing else.
+      {
+        id: HUB_FAVOURITES_FOLDER_ID,
+        title: 'Favourites',
+        tileShape: 'LANDSCAPE',
+        hideTitle: false,
+        coverImageUrl: abs(HUB_FAVOURITES_COVER),
+        focusGifEnabled: false,
+        focusGifUrl: '',
+        heroBackdropUrl: abs(HUB_FAVOURITES_COVER),
+        catalogSources: [
+          { addonId: '', addonUrl: '', catalogId: 'lelibrary-user-favourites-movie', type: 'movie', genre: '' },
+          { addonId: '', addonUrl: '', catalogId: 'lelibrary-user-favourites-series', type: 'series', genre: '' },
+        ],
       },
       // Genres, By Decade and World Cinema: saved as two genre-less sources;
       // each push fills in one tab per genre / decade / language the library
@@ -683,6 +702,11 @@ export function nativeLibraryRows(prefix: string | null, platform: string): Brow
     { id: 'native-my-movies', catalogId: `${resolved}-movies`, name: 'My Movies', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: true },
     { id: 'native-my-shows', catalogId: `${resolved}-series`, name: 'My Shows', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: true },
     { id: 'native-my-anime', catalogId: `${resolved}-anime`, name: 'My Anime', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: true },
+    // Favourites (v6.1): the setup's own picks, served from the library. The
+    // catalogue ids are the same whatever the provider, so they never carry a
+    // prefix. Off Home unless picked; the Hub has the folder.
+    { id: 'native-favourites-movie', catalogId: 'lelibrary-user-favourites-movie', name: 'Favourites', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
+    { id: 'native-favourites-series', catalogId: 'lelibrary-user-favourites-series', name: 'Favourites', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
     // The same library narrowed to one release quality (server:
     // library/quality-filter.ts). Never on Home unless picked.
     // New Releases (server: library/new-releases.ts): films released and

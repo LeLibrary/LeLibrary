@@ -1922,3 +1922,18 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
   .pf-inline { grid-template-columns: 1fr 1fr; }
   .pf-cached { grid-column: 1 / -1; }
 }
+
+/* Favourites (v6.1): the picker in the Setup page. Posters stay small so a
+   long list reads like a strip, and the button column never grows. */
+.fav-list { list-style: none; margin: 10px 0 14px; padding: 0; display: grid; gap: 8px; }
+.fav-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255, 255, 255, 0.015); }
+.fav-poster { width: 40px; height: 60px; border-radius: 6px; object-fit: cover; background: rgba(255, 255, 255, 0.05); display: block; }
+.fav-poster-empty { border: 1px dashed var(--border); }
+.fav-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fav-meta strong { font-size: 0.84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fav-meta small { font-size: 0.7rem; color: var(--muted); }
+.fav-remove, .fav-star { white-space: nowrap; }
+.fav-star:disabled { opacity: 0.55; }
+.fav-pair-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 10px 0 8px; }
+.fav-pair-code { padding: 8px 14px; border: 1px solid rgba(255,255,255,.22); border-radius: 10px; background: rgba(0,0,0,.35); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1rem; letter-spacing: .22em; }
+.fav-pair-badge { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: rgba(255,255,255,.05); }

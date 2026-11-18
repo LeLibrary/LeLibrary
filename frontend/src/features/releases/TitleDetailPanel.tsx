@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchTitle, fetchSeasonEpisodes, type ReleaseMediaType, type SeasonSummary } from '@/api/releases';
 import { queryKeys } from '@/api/query-keys';
 import { ReleaseStatusBadge, EpisodeBadgeRow } from '@/features/releases/ReleaseBadge';
+import { TitleOwnership } from '@/features/releases/TitleOwnership';
 import { formatDate, relativeDay } from '@/features/releases/release-format';
 import type { RegionCode } from '@/features/releases/use-region';
 import { useTranslation } from 'react-i18next';
@@ -156,6 +157,7 @@ export function TitleDetailPanel({ region, type, id }: { region: RegionCode; typ
               {detail.type === 'tv' && detail.networks.slice(0, 2).map((network) => <span key={network} className="rel-chip">{network}</span>)}
               {detail.genres.slice(0, 4).map((genre) => <span key={genre} className="rel-chip">{genre}</span>)}
             </div>
+            <TitleOwnership mediaType={detail.type === 'movie' ? 'movie' : 'series'} tmdbId={detail.id} title={detail.title} />
             {detail.overview && <p className="rel-overview">{detail.overview}</p>}
           </div>
         </div>

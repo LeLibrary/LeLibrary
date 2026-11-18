@@ -185,7 +185,27 @@
     "finale": "Finale",
     "premieresOrFinales": "premieres or finales",
     "documentTitle": "Release Calendar | LeLibrary",
-    "episodeRun": "{{count}} episodes"
+    "episodeRun": "{{count}} episodes",
+    "favourites": {
+      "linkTitle": "Your setup on this page",
+      "linkHint": "Open your setup page, choose Favourites, and make a code. It takes a minute and can be stopped from there at any time.",
+      "codePlaceholder": "Setup code",
+      "link": "Link",
+      "linkError": "That code is wrong or has expired. Make a new one on your setup page.",
+      "linked": "Linked to your setup",
+      "linkedCount_one": "{{count}} favourite",
+      "linkedCount_other": "{{count}} favourites",
+      "linkedEmpty": "No favourites yet",
+      "unlink": "Unlink",
+      "inLibrary": "In your library",
+      "complete": "{{seasons}} complete",
+      "partial": "{{season}} {{owned}} of {{total}}",
+      "partialUnknown": "{{season}} {{owned}} episodes",
+      "notInLibrary": "Not in your library",
+      "star": "Add to favourites",
+      "starred": "In favourites",
+      "unstar": "Remove from favourites"
+    }
   },
   "home": {
     "title": "Your debrid library,",

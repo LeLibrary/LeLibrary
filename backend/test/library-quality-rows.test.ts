@@ -57,12 +57,12 @@ test('a Hub saved before 5.8 gains the 4K and HDR folders on its own provider', 
   // v6 shelves: Recently Added, Top Rated, By Decade, World Cinema, Family
   // Friendly, Short or Long.
   assert.deepEqual(upgraded.folders.map((f) => f.id), ['folder-lelibrary-hub-movies', 'folder-lelibrary-hub-shows',
-    'folder-lelibrary-hub-anime', 'folder-lelibrary-hub-new',
+    'folder-lelibrary-hub-anime', 'folder-lelibrary-hub-favourites', 'folder-lelibrary-hub-new',
     'folder-lelibrary-hub-added', 'folder-lelibrary-hub-top', 'folder-lelibrary-hub-4k', 'folder-lelibrary-hub-hdr', 'folder-lelibrary-hub-genres',
     'folder-lelibrary-hub-decades', 'folder-lelibrary-hub-world', 'folder-lelibrary-hub-family', 'folder-lelibrary-hub-length']);
   const fourKRow = upgraded.folders.find((f) => f.id === 'folder-lelibrary-hub-4k');
   assert.deepEqual(fourKRow.catalogSources.map((s) => s.catalogId), ['rd-movies-4k', 'rd-series-4k']);
-  assert.equal(withHubExtras(upgraded).folders.length, 13, 'never added twice');
+  assert.equal(withHubExtras(upgraded).folders.length, 14, 'never added twice');
   assert.equal(withHubExtras({ id: 'collection-x', folders: [] }).folders.length, 0, 'other collections untouched');
   const plan = compileCollectionPlan({ collections: [hub], integration: 'nuvio', manifestId: 'community.lelibrary.selfhosted' });
   const folders = plan.collections.find((c) => c.id === 'collection-lelibrary-hub').folders;

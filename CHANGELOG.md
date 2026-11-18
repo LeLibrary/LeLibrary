@@ -6,6 +6,9 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ### New
 
+- Favourites: pick films and shows from your own library on the Setup page, and they appear in a new Favourites folder in the LeLibrary Hub with its own cover and animated tile. Only titles you actually have are ever shown, so a favourite you later delete from your library simply drops out.
+- The Releases page can now show what you already hold. Open your setup page, make a short code under Favourites, type it on Releases once, and each title tells you whether it is in your library and how much of a series you have ("seasons 1 and 2 complete, season 3 has 4 of 10"), with a star for the ones you want to keep. The code is single use, expire in ten minutes, and the browser can be unlinked from your setup page at any time.
+
 - The LeLibrary Hub has an Anime folder, with a cover and animated tile drawn in the same style as the rest of the Hub art. It holds the same titles as your My Anime row, so an episode you started there is the same episode here.
 
 - Hubs saved before it was added get the new folder on their next push, placed after Shows. Turn Hide anime on and the folder is left out with the rest of your anime.

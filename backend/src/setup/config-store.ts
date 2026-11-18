@@ -123,6 +123,30 @@ const MIGRATIONS: string[] = [
      last_used_at timestamptz
    )`,
   'CREATE INDEX IF NOT EXISTS configs_last_used_idx ON configs (last_used_at DESC)',
+  // The Setup page's Favourites list (v6.1, setup/favourites-store.ts): a
+  // TMDB id and a kind per row, nothing else. Removing a setup takes its list
+  // with it.
+  `CREATE TABLE IF NOT EXISTS setup_favourites (
+     uuid text NOT NULL REFERENCES configs(uuid) ON DELETE CASCADE,
+     media_type text NOT NULL CHECK (media_type IN ('movie', 'series')),
+     tmdb_id integer NOT NULL,
+     added_at timestamptz NOT NULL DEFAULT now(),
+     PRIMARY KEY (uuid, media_type, tmdb_id)
+   )`,
+  'CREATE INDEX IF NOT EXISTS setup_favourites_uuid_idx ON setup_favourites (uuid, added_at DESC)',
+  // Releases-page pairings (v6.1, setup/favourites-pairing.ts): a scoped
+  // session per device, stored as a hash. Revoked rows are kept out of every
+  // read; deleting the setup removes its pairings.
+  `CREATE TABLE IF NOT EXISTS setup_favourites_pairings (
+     id uuid PRIMARY KEY,
+     setup_uuid text NOT NULL REFERENCES configs(uuid) ON DELETE CASCADE,
+     token_hash text NOT NULL UNIQUE,
+     label text,
+     created_at timestamptz NOT NULL DEFAULT now(),
+     last_used_at timestamptz,
+     revoked_at timestamptz
+   )`,
+  'CREATE INDEX IF NOT EXISTS setup_favourites_pairings_setup_idx ON setup_favourites_pairings (setup_uuid, created_at DESC)',
 ];
 
 async function migrate(pool: PoolLike): Promise<void> {

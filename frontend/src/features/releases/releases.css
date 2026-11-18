@@ -341,3 +341,30 @@
   .rel-v2 .rel-item .rel-poster { width: 100%; height: auto; }
   .rel-v2 .rel-day-list { grid-template-columns: 1fr; }
 }
+
+/* Favourites link + ownership (v6.1). Kept quiet: the page is about release
+   dates, so the link is a single line until someone uses it. */
+.rel-link { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 0 0 18px; padding: 12px 14px; border: 1px solid var(--rel-line, rgba(255,255,255,.1)); border-radius: 14px; background: rgba(255,255,255,.02); }
+.rel-link-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 240px; min-width: 0; }
+.rel-link-text strong { font-size: 0.84rem; }
+.rel-link-text small { font-size: 0.72rem; color: var(--rel-muted, rgba(255,255,255,.6)); }
+.rel-link-code { width: 150px; padding: 9px 12px; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; background: rgba(0,0,0,.35); color: inherit; font: inherit; letter-spacing: .14em; text-transform: uppercase; }
+.rel-link-btn { padding: 9px 16px; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; background: rgba(255,255,255,.06); color: inherit; font: inherit; cursor: pointer; }
+.rel-link-btn:disabled { opacity: .5; cursor: default; }
+.rel-link-error { flex: 1 1 100%; font-size: .72rem; color: #ff9d9d; }
+.rel-link-on { border-color: rgba(120, 220, 160, .35); }
+.rel-link-dot { width: 8px; height: 8px; border-radius: 50%; background: #6ee7a8; box-shadow: 0 0 10px rgba(110,231,168,.6); }
+
+.rel-owned { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 12px 0 0; }
+.rel-owned-state { display: flex; align-items: flex-start; gap: 9px; font-size: .8rem; }
+.rel-owned-state > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.rel-owned-state strong { font-size: .84rem; }
+.rel-owned-state small { font-size: .74rem; color: var(--rel-muted, rgba(255,255,255,.62)); }
+.rel-owned-dot { margin-top: 6px; width: 7px; height: 7px; border-radius: 50%; background: #6ee7a8; }
+.rel-owned-missing .rel-owned-dot { background: rgba(255,255,255,.28); }
+.rel-star { padding: 8px 13px; border: 1px solid rgba(255,255,255,.18); border-radius: 999px; background: rgba(255,255,255,.04); color: inherit; font: inherit; font-size: .78rem; cursor: pointer; }
+.rel-star.is-on { border-color: rgba(245, 197, 111, .6); background: rgba(245,197,111,.12); }
+.rel-star:disabled { opacity: .6; cursor: default; }
+.rel-owned-seasons { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100%; }
+.rel-owned-chip { padding: 4px 9px; border: 1px solid rgba(255,255,255,.14); border-radius: 999px; font-size: .7rem; color: rgba(255,255,255,.72); }
+.rel-owned-chip.is-full { border-color: rgba(110,231,168,.4); color: #b9f5d2; }

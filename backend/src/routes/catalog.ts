@@ -508,6 +508,31 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       return res.json(withCacheHints({ metas: paginated }, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
     }
 
+    // ── Favourites (v6.1): the Hub's Favourites folder and the personal rows ──
+    // lelibrary-user-favourites-movie / -series. Served from this setup's own
+    // list (setup/favourites-store.ts) narrowed to their library rows, so the
+    // metas, streams and watch progress are the library's own. Handled before
+    // the personal-list branch: these are not external services.
+    if (/^lelibrary-user-favourites-(movie|series)$/.test(catalogId)) {
+      const extra = parseExtra(req.params.extra || '');
+      const type = catalogId.endsWith('-movie') ? 'movie' : 'series';
+      let out = { metas: [] };
+      try {
+        out = await timeSpan(req.perfTrace, 'favourites', () => libraryEngine.buildFavouritesCatalog({
+          token, config, type, sortBy, skip: parseInt(extra.skip) || 0, libraryIdMode, lang,
+          enhance: posterEnhance(config),
+          // Every active provider: a personal list is the whole library, not
+          // one provider's slice of it.
+          provider: null,
+          trace: req.perfTrace,
+        }));
+      } catch (err: any) {
+        console.warn(`[Favourites] ${catalogId} failed: ${err?.message || 'error'}`);
+      }
+      setPrivateResponseCache(res, 300);
+      return res.json(withCacheHints({ metas: out.metas || [] }, { cacheMaxAge: 300, staleRevalidate: 300, staleError: 1800 }));
+    }
+
     // ── Personal list rows (v6: Simkl / MDBList / AniList) ──
     // lelibrary-user-{provider}-{list}-{type}, plus the v5.5 watchlist ids as
     // aliases (torbox-watchlist-simkl-* = Simkl Plan to Watch,
