@@ -35,6 +35,20 @@ const BUILTIN_SPLIT_SEASONS = {
     4: { tmdbId: 304556, season: 1 },
     5: { tmdbId: 304561, season: 1 },
   },
+  // Top Boy's 2011 run (41889) and Netflix run (93544) are separate TMDB
+  // entries, but releases number the whole franchise S01-S06. Verified against
+  // the operator's pack filenames on 2026-11-18 (key-free): S04 "Good Morals",
+  // "Likkle Favour" are 93544 S02; S05 "Step Back", "Birthday Party",
+  // "Has It Come to This" are 93544 S03. Both entries must carry the rows:
+  // search may return either first, and S03 belongs to the 2011 entry.
+  41889: {
+    4: { tmdbId: 93544, season: 2 },
+    5: { tmdbId: 93544, season: 3 },
+  },
+  93544: {
+    4: { tmdbId: 93544, season: 2 },
+    5: { tmdbId: 93544, season: 3 },
+  },
 };
 
 // Anthology seasons TMDB lists as standalone entries while scene/Sonarr keep

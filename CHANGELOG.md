@@ -25,6 +25,12 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 - Improved matching for accented and foreign-language titles, including Pokemon, reducing incorrect matches to similarly named shows.
 
+- Pokemon releases with no episode title in the name (RESTORE, RETRY and whole-season packs) now match the right series instead of failing. Packs numbered S20 are matched to Pokemon Horizons, the others to the main Pokemon series, using the episode numbers in the release name. Three-digit episode numbers such as `S19E049` are now read correctly instead of being cut to `S19E04`.
+
+- Fixed several releases that would not match at all: Monster season 4 packs named after Abby Borden (now matched to the Lizzie Borden season), S00E01 making-of specials (now matched as films), and Top Boy packs numbered S04 or S05 (now matched to the 2019 series with the correct season). The titles of the files inside a pack are used to confirm these matches where the release name alone is not enough.
+
+- After these matching changes, your library is re-checked once automatically. Matches you fixed yourself are kept, and a re-check that finds nothing better never replaces a working match.
+
 - Premiumize library scans now keep the previous library if the provider cannot return a complete listing, instead of treating a failed or partial scan as an empty library.
 - Nuvio collection updates wait longer after an authentication failure and retry later, reducing repeated failures while allowing recovery.
 
