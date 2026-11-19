@@ -275,6 +275,7 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
         collections: Array.isArray(config['collections']) ? config['collections'] as unknown[] : [],
         homeRows: Array.isArray(config['collectionHomeRows']) ? config['collectionHomeRows'] as PushConnection[] & never[] : [],
         sources: Array.isArray(config['collectionSources']) ? config['collectionSources'] as unknown[] : [],
+        homeOrder: Array.isArray(config['homeOrder']) ? config['homeOrder'].filter((id): id is string => typeof id === 'string') : [],
       },
       // One parser for badge + playback options (shared with the background
       // replay), so the two push paths cannot drift.

@@ -17,7 +17,9 @@ import { ShellSidebar, TierShell } from '@/features/setup/shared/tier/TierShell'
 import { HomeLayoutSheet } from '@/features/setup/shared/tier/HomeLayoutSheet';
 import { turnstileReady } from '@/features/setup/shared/turnstile';
 import { createBlocker, optionalChecks, posterFacts, preferenceFacts, requiredChecks, setupCompletion } from '@/features/setup/shared/tier/shell-model';
-import { homeLayoutCollections, homeLayoutCount, homeLayoutRowItems, homeLayoutRows, moveHomeLayoutCollection, moveHomeLayoutRow } from '@/features/setup/shared/home-layout';
+import {
+  homeLayoutCollections, homeLayoutCount, homeLayoutItemsInOrder, homeLayoutRows, moveHomeOrder, reconcileHomeOrder,
+} from '@/features/setup/shared/home-layout';
 import '@/features/setup/shared/tier/tier.css';
 import { badgeForSnapshot, snapshotToFullDraft, useEditSnapshot, type EditMode } from '@/features/setup/shared/edit-mode';
 import { EMPTY_METADATA_EXTRAS, MetadataExtras, type MetadataExtrasDraft } from '@/features/setup/full/MetadataExtras';
@@ -160,6 +162,9 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
   const [formatting, setFormatting] = useState<FormattingDraft>(restored?.formatting ?? EMPTY_FORMATTING);
   const [posters, setPosters] = useState<PostersDraft>(restored?.posters ?? EMPTY_POSTERS);
   const [homeRows, setHomeRows] = useState<HomeRowDoc[]>(restored?.homeRows ?? []);
+  // The person's own Home order (doc ids). Empty = collections lead, then the
+  // Home rows, which is how every setup started.
+  const [homeOrder, setHomeOrder] = useState<string[]>(edit?.initial.homeOrder ?? []);
   const [badgePack, setBadgePack] = useState(restored?.badgePack ?? DEFAULT_BADGE_PACK);
   // The typed custom URL lives apart from pack URLs: picking "Choose your
   // own" always opens a blank field, never the last pack's URL.
@@ -237,7 +242,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
   useEditSnapshot(edit, seed ? {
     ...seed, name, keys, platform, rdCatalog, connection: pushConn, posters, formatting,
     badgePack: badgeForSnapshot(seed, badgePack, customBadgeUrl, (id) => BADGE_PACKS.find((entry) => entry.id === id)?.url ?? ''),
-    meta, filterSets, homeRows, collections, packs, addons, customStreams, nuvioPlayback, nuvioHideUnreleased, libraryRows, customAddons,
+    meta, filterSets, homeRows, homeOrder, collections, packs, addons, customStreams, nuvioPlayback, nuvioHideUnreleased, libraryRows, customAddons,
   } : (null as never));
 
   // Revealing a saved key fills this page's own field (the eye on an empty
@@ -291,6 +296,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
         streamPreset: formatting.preset,
         streamNameTemplate: formatting.nameTemplate,
         streamDescTemplate: formatting.descTemplate,
+        ...(homeOrder.length ? { homeOrder: [...homeOrder] } : {}),
         posterProvider: posters.provider,
         customPosterTemplate: posters.customTemplate,
         nuvioBadgePack: badgePack,
@@ -410,10 +416,11 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
     : createBlocker(keyState, lastStep ? { value: creation.password, confirmation: creation.confirmation } : null, !lastStep || turnstileReady(creation.turnstile));
   const arrange = { count: homeLayoutCount(collections, homeRows, platform), onOpen: () => setLayoutOpen(true) };
 
-  function moveLayoutCollection(from: number, to: number) {
-    const moved = moveHomeLayoutCollection(collections, homeRows, platform, from, to);
-    if (moved.collections !== collections) setCollections(moved.collections);
-    if (moved.rows !== homeRows) setHomeRows(moved.rows);
+  // One list on Nuvio: the sheet hands back the whole order and the setup
+  // keeps it, so a Home row can sit above a collection.
+  const layoutOrder = reconcileHomeOrder(homeOrder, collections, homeRows, platform);
+  function moveLayoutItem(from: number, to: number) {
+    setHomeOrder(moveHomeOrder(layoutOrder, from, to));
   }
 
   return (
@@ -580,10 +587,8 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
       </TierShell>
       <HomeLayoutSheet
         open={layoutOpen} onClose={() => setLayoutOpen(false)}
-        groups={[
-          { id: 'collections', items: homeLayoutCollections(collections, homeRows, platform), onMove: moveLayoutCollection },
-          { id: 'rows', items: homeLayoutRowItems(homeRows, platform), onMove: (from, to) => setHomeRows((rows) => moveHomeLayoutRow(rows, platform, from, to)) },
-        ]}
+        items={homeLayoutItemsInOrder(collections, homeRows, platform, layoutOrder)}
+        onMove={moveLayoutItem}
       />
       {preview.modal}
       <ConfirmModal

@@ -49,6 +49,8 @@ export interface SavedDrafts {
   filterSets: FilterSetsDraft;
   mediaSets: MediaSetsDraft;
   collectionHomeRows: HomeRowDoc[];
+  // The saved Home order from the layout sheet (doc ids), when it has one.
+  homeOrder: string[];
   collections: CollectionDoc[];
   packs: string[];
   addons: string[];
@@ -172,6 +174,7 @@ export function applySavedConfig(saved: unknown): SavedDrafts {
       audio: pick(config.filterAudio, ALL_AUDIO),
     },
     collectionHomeRows: cleanHomeRowDocs(config.collectionHomeRows),
+    homeOrder: Array.isArray(config.homeOrder) ? config.homeOrder.filter((id): id is string => typeof id === 'string') : [],
     collections: cleanCollections(config.collections),
     packs: asStringArray(config.nuvioCollectionPacks),
     addons: asStringArray(config.streamAddons),

@@ -28,6 +28,8 @@ export const BASE_EDIT_SAVE: EditSaveInput = {
   mediaSets: EMPTY_MEDIA_SETS,
   filtersTouched: false,
   homeRows: [],
+  homeOrder: [],
+  homeOrderTouched: false,
   homeRowsTouched: false,
   collections: [],
   collectionsTouched: false,

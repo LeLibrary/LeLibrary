@@ -45,6 +45,8 @@ export interface FullDraft {
   formatting: FormattingDraft;
   posters: PostersDraft;
   homeRows: HomeRowDoc[];
+  // The person's own Home order from the layout sheet (doc ids), if they used it.
+  homeOrder?: string[];
   badgePack: string;
   customBadgeUrl: string;
   collections: CollectionDoc[];

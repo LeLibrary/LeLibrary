@@ -49,14 +49,20 @@ function layoutHomeKeys({ existingKeys, desired, managed, lead = [] }: LayoutInp
   return [...new Set(lead), ...out];
 }
 
-// Collections first: the setup's collections in the order of its Collections
-// page, Movie Collections at its slot among them (default: first). Then the
-// Home rows by their `order`.
+// The order this setup wants, as one list: either the person's own Home order
+// (collections and rows mixed, from the Home layout sheet), or collections
+// first (the Collections page order, Movie Collections at its slot) and then
+// the Home rows by their `order`.
 function desiredHomeKeys(input: {
   rows: { key: string; order: number }[];
   franchise: { key: string; slot: number | null } | null;
   collectionKeys: string[];
+  // The setup's saved Home order (Nuvio item keys). When it holds anything,
+  // it replaces the collections-first rule entirely.
+  ordered?: string[];
 }): { lead: string[]; rows: string[] } {
+  const ordered = (Array.isArray(input.ordered) ? input.ordered : []).filter((key) => typeof key === 'string' && key);
+  if (ordered.length) return { lead: [], rows: [...new Set(ordered)] };
   const lead = input.collectionKeys.filter((key) => !input.franchise || key !== input.franchise.key);
   if (input.franchise) {
     const slot = Number.isFinite(input.franchise.slot) ? Math.max(0, Math.min(lead.length, Math.floor(Number(input.franchise.slot)))) : 0;

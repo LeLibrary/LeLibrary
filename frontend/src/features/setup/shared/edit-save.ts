@@ -51,6 +51,10 @@ export interface EditSaveInput {
   filtersTouched: boolean;
   homeRows: HomeRowDoc[];
   homeRowsTouched: boolean;
+  // The Home layout sheet's order (doc ids). Written only once the person has
+  // arranged Home, so an untouched setup keeps collections leading.
+  homeOrder: string[];
+  homeOrderTouched: boolean;
   collections: CollectionDoc[];
   collectionsTouched: boolean;
   packs: string[];
@@ -194,6 +198,10 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
     config.filterMinSize = parseGb(input.filterSets.minSizeGb);
     config.filterMaxSize = parseGb(input.filterSets.maxSizeGb);
     config.filterCachedOnly = input.filterSets.cachedOnly;
+  }
+  if (input.homeOrderTouched) {
+    if (input.homeOrder.length > 0) config.homeOrder = [...input.homeOrder];
+    else delete config.homeOrder;
   }
   if (input.homeRowsTouched) {
     config.collectionHomeRows = input.homeRows.map((row) => ({ ...row }));

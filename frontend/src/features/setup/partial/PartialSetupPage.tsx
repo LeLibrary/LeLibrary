@@ -20,7 +20,9 @@ import { ShellSidebar, TierShell } from '@/features/setup/shared/tier/TierShell'
 import { HomeLayoutSheet } from '@/features/setup/shared/tier/HomeLayoutSheet';
 import { turnstileReady } from '@/features/setup/shared/turnstile';
 import { createBlocker, optionalChecks, posterFacts, preferenceFacts, requiredChecks, setupCompletion } from '@/features/setup/shared/tier/shell-model';
-import { homeLayoutCollections, homeLayoutCount, homeLayoutRowItems, homeLayoutRows, moveHomeLayoutRow } from '@/features/setup/shared/home-layout';
+import {
+  homeLayoutCount, homeLayoutItemsInOrder, homeLayoutRows, moveHomeOrder, reconcileHomeOrder,
+} from '@/features/setup/shared/home-layout';
 import '@/features/setup/shared/tier/tier.css';
 import { badgeForSnapshot, snapshotToPartialDraft, useEditSnapshot, type EditMode } from '@/features/setup/shared/edit-mode';
 import { EMPTY_FILTER_SETS, FilterSets, filterSummaryParts, type FilterSetsDraft } from '@/features/setup/full/FilterSets';
@@ -149,6 +151,9 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
   const [formatting, setFormatting] = useState<FormattingDraft>(restored?.formatting ?? EMPTY_FORMATTING);
   const [posters, setPosters] = useState<PostersDraft>(restored?.posters ?? EMPTY_POSTERS);
   const [homeRows, setHomeRows] = useState<HomeRowDoc[]>(restored?.homeRows ?? []);
+  // The person's own Home order (doc ids). Empty = collections lead, then the
+  // Home rows, which is how every setup started.
+  const [homeOrder, setHomeOrder] = useState<string[]>(edit?.initial.homeOrder ?? []);
   const [filterSets, setFilterSets] = useState(restored?.filterSets ?? EMPTY_FILTER_SETS);
   const [mediaSets, setMediaSets] = useState(restored?.mediaSets ?? EMPTY_MEDIA_SETS);
   const [meta, setMeta] = useState<MetadataExtrasDraft>(restored?.meta ? { ...EMPTY_METADATA_EXTRAS, ...restored.meta } : EMPTY_METADATA_EXTRAS);
@@ -240,7 +245,7 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
   useEditSnapshot(edit, seed ? {
     ...seed, name, keys, platform, connection, posters, formatting,
     badgePack: badgeForSnapshot(seed, badgePack, customBadgeUrl, (id) => BADGE_PACKS.find((entry) => entry.id === id)?.url ?? ''),
-    meta, filterSets, mediaSets, homeRows, addons, customStreams, nuvioPlayback, nuvioHideUnreleased, libraryRows, customAddons,
+    meta, filterSets, mediaSets, homeRows, homeOrder, addons, customStreams, nuvioPlayback, nuvioHideUnreleased, libraryRows, customAddons,
   } : (null as never));
 
   // Revealing a saved key fills this page's own field (the eye on an empty
@@ -293,6 +298,7 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
         streamPreset: formatting.preset,
         streamNameTemplate: formatting.nameTemplate,
         streamDescTemplate: formatting.descTemplate,
+        ...(homeOrder.length ? { homeOrder: [...homeOrder] } : {}),
         posterProvider: posters.provider,
         customPosterTemplate: posters.customTemplate,
         nuvioBadgePack: badgePack,
@@ -561,11 +567,8 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
       </TierShell>
       <HomeLayoutSheet
         open={layoutOpen} onClose={() => setLayoutOpen(false)}
-        groups={[
-          // Settle In has no collections; Movie Collections (Nuvio) still sits above the rows.
-          { id: 'collections', items: homeLayoutCollections([], homeRows, platform), onMove: () => {} },
-          { id: 'rows', items: homeLayoutRowItems(homeRows, platform), onMove: (from, to) => setHomeRows((rows) => moveHomeLayoutRow(rows, platform, from, to)) },
-        ]}
+        items={homeLayoutItemsInOrder([], homeRows, platform, reconcileHomeOrder(homeOrder, [], homeRows, platform))}
+        onMove={(from, to) => setHomeOrder((order) => moveHomeOrder(reconcileHomeOrder(order, [], homeRows, platform), from, to))}
       />
       {preview.modal}
       <ConfirmModal

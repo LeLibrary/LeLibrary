@@ -105,6 +105,9 @@ export interface PushDocument {
   collections?: unknown[];
   homeRows?: HomeRowDoc[];
   sources?: unknown[];
+  // The setup's own Home order (doc ids: collections, home rows, the Movie
+  // Collections marker). Absent = collections lead, as before.
+  homeOrder?: string[];
 }
 
 export interface PushOptions {
@@ -125,6 +128,9 @@ export interface PushOptions {
   // profile that is not LeLibrary's. Never read from the saved config, so
   // background updates and replays always keep other collections.
   replaceOtherCollections?: boolean;
+  // The setup's own Home order (doc ids), from its document. Empty keeps the
+  // collections-first default.
+  homeOrder?: string[];
 }
 
 export interface InstallSetupInput {
@@ -559,9 +565,12 @@ export interface NuvioHomeItemsInput {
   homeRows?: HomeRowDoc[];
   collections?: { id?: string }[];
   franchiseSlot?: number | null;
+  // The setup's own Home order, by doc id. When present and it names anything,
+  // it decides the order (a row can sit above a collection).
+  homeOrder?: string[];
 }
 
-function planNuvioHomeItems({ items, manifest, homeRows = [], collections = [], franchiseSlot = null }: NuvioHomeItemsInput): Record<string, unknown>[] {
+function planNuvioHomeItems({ items, manifest, homeRows = [], collections = [], franchiseSlot = null, homeOrder = [] }: NuvioHomeItemsInput): Record<string, unknown>[] {
   // Nuvio collection Home entries do not have addon/type/catalog fields.
   // Canonicalise them separately so an older, pinned collection record can
   // be replaced instead of surviving under the empty-catalogue key.
@@ -682,15 +691,38 @@ function planNuvioHomeItems({ items, manifest, homeRows = [], collections = [], 
   }
   if (!hasFranchise) byKey.delete(franchiseKey);
 
-  const rowKeys = orderedHomeRows.map((r) => {
+  const allRowKeys = orderedHomeRows.map((r) => {
     const source = r.source || {};
     const catalogId = source.catalogId || source.id;
     return { key: nuvioHomeKey(source.addonId || manifest.id, source.type, catalogId), order: Number(r.order || 0) };
-  }).filter((row) => byKey.has(row.key));
+  });
+  const rowKeys = allRowKeys.filter((row) => byKey.has(row.key));
+  // Every key this push owns, whether or not the profile has it yet: a row the
+  // person just added keeps its place in their own order.
+  const ownedKeys = new Set<string>([...collectionKeys, franchiseKey, ...allRowKeys.map((row) => row.key)]);
+  // The person's own Home order: doc ids in, Nuvio item keys out. Only keys
+  // this push actually sends survive; anything it names that is gone is
+  // skipped, and any owned key it does not name follows in its current place.
+  const keyByDocId = new Map<string, string>();
+  for (const row of orderedHomeRows) {
+    const source = row.source || {};
+    const id = String(row.id || '');
+    if (!id) continue;
+    keyByDocId.set(id, row._nativeFranchiseCollection === true
+      ? franchiseKey
+      : nuvioHomeKey(source.addonId || manifest.id, source.type, source.catalogId || source.id));
+  }
+  for (const collection of collections) {
+    if (collection?.id) keyByDocId.set(String(collection.id), `collection_${collection.id}`);
+  }
+  const ordered = (Array.isArray(homeOrder) ? homeOrder : [])
+    .map((id) => keyByDocId.get(String(id)) || '')
+    .filter((key) => key && (ownedKeys.has(key) || byKey.has(key)));
   const wanted = homeLayout.desiredHomeKeys({
     rows: rowKeys,
     franchise: hasFranchise ? { key: franchiseKey, slot: franchiseSlot } : null,
     collectionKeys,
+    ordered,
   });
   // Collections always lead Home: LeLibrary's in the setup's order, then any
   // other collection on the profile in the order it has now.
@@ -706,8 +738,22 @@ function planNuvioHomeItems({ items, manifest, homeRows = [], collections = [], 
   }
 
   return (() => {
-    const allKeys = homeLayout.layoutHomeKeys({ existingKeys, desired, managed, lead });
-    for (const key of byKey.keys()) if (!allKeys.includes(key)) allKeys.push(key);
+    // An explicit order from the setup is applied as given: LeLibrary's own
+    // entries first, in that order, then anything else the profile has (other
+    // addons' rows and collections) exactly where it was. Going through
+    // layoutHomeKeys here would re-sort by its own slots, which is how a row
+    // below a collection kept snapping back (2026-11-19).
+    let allKeys: string[];
+    if (ordered.length) {
+      allKeys = [];
+      for (const key of [...ordered, ...existingKeys, ...byKey.keys()]) {
+        if (allKeys.includes(key)) continue;
+        if (byKey.has(key) || managed.has(key)) allKeys.push(key);
+      }
+    } else {
+      allKeys = homeLayout.layoutHomeKeys({ existingKeys, desired, managed, lead });
+      for (const key of byKey.keys()) if (!allKeys.includes(key)) allKeys.push(key);
+    }
     // Each item keeps the key set above (the mobile format for catalogues,
     // collection_<id> for collections); the map key is only for matching.
     return allKeys.map((key: string, order: number) => {
@@ -764,11 +810,11 @@ async function writeNuvioHomeDoc(token: string, profileIndex: number, settings: 
 // its own (older) order while the push runs, and last write wins on Nuvio's
 // side. One re-apply keeps the order the setup asked for; a client that keeps
 // changing it afterwards is never fought beyond that.
-async function syncNuvioHomeOrder(token: string, profileIndex: number, manifest: { id?: string; catalogs?: { type?: string; id?: string; showInHome?: boolean }[] }, homeRows: HomeRowDoc[] = [], collections: { id?: string }[] = [], uuidKey = 'setup', hideUnreleased: boolean | null = null, franchiseSlot: number | null = null): Promise<void> {
+async function syncNuvioHomeOrder(token: string, profileIndex: number, manifest: { id?: string; catalogs?: { type?: string; id?: string; showInHome?: boolean }[] }, homeRows: HomeRowDoc[] = [], collections: { id?: string }[] = [], uuidKey = 'setup', hideUnreleased: boolean | null = null, franchiseSlot: number | null = null, homeOrder: string[] = []): Promise<void> {
   try {
     if (!manifest || !Array.isArray(manifest.catalogs)) return;
     const before = await pullNuvioHomeDoc(token, profileIndex);
-    const finalItems = planNuvioHomeItems({ items: before.items, manifest, homeRows, collections, franchiseSlot });
+    const finalItems = planNuvioHomeItems({ items: before.items, manifest, homeRows, collections, franchiseSlot, homeOrder });
     await writeNuvioHomeDoc(token, profileIndex, before.settings, finalItems, hideUnreleased, uuidKey);
     log('Nuvio Home order synced');
 
@@ -1153,6 +1199,7 @@ async function pushToNuvio(
       options.uuidKey,
       options.nuvioHideUnreleased ?? null,
       (collectionPlan.nativeFranchiseCollection as { slot?: number | null } | undefined)?.slot ?? null,
+      Array.isArray(options.homeOrder) ? options.homeOrder : [],
     );
   }
   // Badges, TMDB enrichment and playback land in one settings write per
@@ -1218,6 +1265,7 @@ async function installSetup(input: InstallSetupInput): Promise<InstallSetupResul
           nuvioPlayback: options.nuvioPlayback ?? null,
           nuvioHideUnreleased: options.nuvioHideUnreleased ?? null,
           replaceOtherCollections: options.replaceOtherCollections === true,
+          homeOrder: Array.isArray(document.homeOrder) ? document.homeOrder : [],
           uuidKey: uuid,
           origin,
           port,

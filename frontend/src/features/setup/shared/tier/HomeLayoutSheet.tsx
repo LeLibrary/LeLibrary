@@ -2,22 +2,15 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import { createPortal } from 'react-dom';
 import type { HomeLayoutItem } from '@/features/setup/shared/home-layout';
 
-// "Home layout": one sheet to set the order of everything on Home. Two
-// groups in a fixed order (Nuvio puts collections above Home rows, always),
-// each reordered on its own by drag (mouse and touch, pointer events) or the
-// up / down buttons. It edits the page's own lists through the callbacks, so
-// the Home rows and Collections pages show the same order.
+// "Home layout": one sheet, one list, for everything on Home. Collections and
+// Home rows share a single order, so a row can sit above a collection. Drag
+// (mouse and touch, pointer events) or the up / down buttons move a card; every
+// move hands the whole order back to the page, which saves it on the setup and
+// the push sends it to Nuvio.
 
-export interface HomeLayoutGroup {
-  id: 'collections' | 'rows';
-  items: HomeLayoutItem[];
-  onMove: (from: number, to: number) => void;
-}
-
-const GROUP_TITLE: Record<HomeLayoutGroup['id'], string> = { collections: 'Collections', rows: 'Home rows' };
 const KIND_LABEL: Record<HomeLayoutItem['kind'], string> = { collection: 'Collection', library: 'Library', row: 'Row' };
 
-function LayoutGroup({ group }: { group: HomeLayoutGroup }) {
+function LayoutList({ items, onMove }: { items: HomeLayoutItem[]; onMove: (from: number, to: number) => void }) {
   const listRef = useRef<HTMLOListElement>(null);
   const [dragging, setDragging] = useState<number | null>(null);
   const draggingRef = useRef<number | null>(null);
@@ -44,7 +37,7 @@ function LayoutGroup({ group }: { group: HomeLayoutGroup }) {
       if (at > from && event.clientY > middle) to = Math.max(to, at);
     });
     if (to !== from) {
-      group.onMove(from, to);
+      onMove(from, to);
       draggingRef.current = to;
       setDragging(to);
     }
@@ -55,10 +48,9 @@ function LayoutGroup({ group }: { group: HomeLayoutGroup }) {
   }
 
   return (
-    <section className="hl-group" aria-label={GROUP_TITLE[group.id]}>
-      <h4 className="hl-group-title">{GROUP_TITLE[group.id]}</h4>
+    <section className="hl-group" aria-label="Home order">
       <ol className="hl-list" ref={listRef}>
-        {group.items.map((item, index) => (
+        {items.map((item, index) => (
           <li key={item.key} className={`hl-item${dragging === index ? ' is-dragging' : ''}`}>
             <span
               className="hl-handle" aria-hidden="true"
@@ -72,8 +64,8 @@ function LayoutGroup({ group }: { group: HomeLayoutGroup }) {
             <span className={`hl-chip is-${item.kind}`}>{KIND_LABEL[item.kind]}</span>
             <span className="hl-name" data-i18n-preserve>{item.title}</span>
             <span className="hl-moves">
-              <button type="button" className="hl-move" aria-label={`Move ${item.title} up`} disabled={index === 0} onClick={() => group.onMove(index, index - 1)}>↑</button>
-              <button type="button" className="hl-move" aria-label={`Move ${item.title} down`} disabled={index === group.items.length - 1} onClick={() => group.onMove(index, index + 1)}>↓</button>
+              <button type="button" className="hl-move" aria-label={`Move ${item.title} up`} disabled={index === 0} onClick={() => onMove(index, index - 1)}>↑</button>
+              <button type="button" className="hl-move" aria-label={`Move ${item.title} down`} disabled={index === items.length - 1} onClick={() => onMove(index, index + 1)}>↓</button>
             </span>
           </li>
         ))}
@@ -82,20 +74,13 @@ function LayoutGroup({ group }: { group: HomeLayoutGroup }) {
   );
 }
 
-// Collections always come first (Nuvio Home order), whatever order a page
-// passes; empty groups are left out.
-export function layoutGroupsInOrder(groups: HomeLayoutGroup[]): HomeLayoutGroup[] {
-  const rank = (id: HomeLayoutGroup['id']) => (id === 'collections' ? 0 : 1);
-  return groups.filter((group) => group.items.length > 0).sort((a, b) => rank(a.id) - rank(b.id));
-}
-
 // The sheet's box (no portal), so tests can render it without a document.
-export function HomeLayoutBox({ groups, onClose, doneRef }: {
-  groups: HomeLayoutGroup[];
+export function HomeLayoutBox({ items, onMove, onClose, doneRef }: {
+  items: HomeLayoutItem[];
+  onMove: (from: number, to: number) => void;
   onClose: () => void;
   doneRef?: RefObject<HTMLButtonElement | null> | undefined;
 }) {
-  const shown = layoutGroupsInOrder(groups);
   return (
     <div className="hl-box">
       <header className="hl-head">
@@ -106,10 +91,9 @@ export function HomeLayoutBox({ groups, onClose, doneRef }: {
         <button type="button" className="hl-close" aria-label="Close" onClick={onClose}>✕</button>
       </header>
       <div className="hl-body">
-        {shown.length === 0 ? (
+        {items.length === 0 ? (
           <p className="hl-empty">Nothing on Home yet. Add rows on the Home rows page.</p>
-        ) : shown.map((group) => <LayoutGroup key={group.id} group={group} />)}
-        {shown.length > 1 && <p className="hl-note">Collections always sit above Home rows in Nuvio.</p>}
+        ) : <LayoutList items={items} onMove={onMove} />}
       </div>
       <footer className="hl-foot">
         <button type="button" className="setup-primary hl-done" ref={doneRef} onClick={onClose}>Done</button>
@@ -118,10 +102,11 @@ export function HomeLayoutBox({ groups, onClose, doneRef }: {
   );
 }
 
-export function HomeLayoutSheet({ open, onClose, groups }: {
+export function HomeLayoutSheet({ open, onClose, items, onMove }: {
   open: boolean;
   onClose: () => void;
-  groups: HomeLayoutGroup[];
+  items: HomeLayoutItem[];
+  onMove: (from: number, to: number) => void;
 }) {
   const doneRef = useRef<HTMLButtonElement>(null);
   // Pages pass a fresh closure each render; the open/close effect must run
@@ -146,7 +131,7 @@ export function HomeLayoutSheet({ open, onClose, groups }: {
   if (!open || typeof document === 'undefined') return null;
   return createPortal(
     <div className="app-modal hl-sheet" role="dialog" aria-modal="true" aria-label="Home layout" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <HomeLayoutBox groups={groups} onClose={onClose} doneRef={doneRef} />
+      <HomeLayoutBox items={items} onMove={onMove} onClose={onClose} doneRef={doneRef} />
     </div>,
     document.body,
   );

@@ -10,8 +10,11 @@ import {
 // two lists: `collectionHomeRows` (homeRows) and `collections`, with the
 // Movie Collections card placed by its marker row's `collectionSlot`. These
 // helpers are the one place both read and reorder them, so the sheet can
-// never keep a second order. On Nuvio, collections always sit above Home
-// rows (operator rule), so each list only reorders within itself.
+// never keep a second order.
+//
+// Collections lead Home by default. Once the person arranges Home in the sheet,
+// the setup keeps one `homeOrder` list (doc ids) where a row can sit above a
+// collection, and the push sends that order to Nuvio.
 
 // The rows a Home list shows. On Nuvio Movie Collections is a collection,
 // not a Home row: its marker (and any stray franchise row) stays out.
@@ -100,4 +103,52 @@ export function moveHomeLayoutCollection(
 // "Arrange home · N items": everything the sheet lists.
 export function homeLayoutCount(collections: CollectionDoc[], rows: HomeRowDoc[], platform: string): number {
   return homeLayoutCollections(collections, rows, platform).length + homeLayoutRows(rows, platform).length;
+}
+
+
+// ── One Home order (v6.1): rows and collections mixed ─────────────────────
+
+// Every card on Home, in the order it shows: the setup's collections (Movie
+// Collections at its slot), then the Home rows. This is what a setup sees
+// before it has its own order.
+export function defaultHomeOrder(collections: CollectionDoc[], rows: HomeRowDoc[], platform: string): string[] {
+  const marker = ownedMarker(rows);
+  const collectionIds = collectionEntries(collections.length, ownedCollectionSlot(rows, platform)).map((entry) => (entry.kind === 'owned'
+    ? marker?.id ?? 'native-franchise-collection'
+    : collections[entry.index]?.id ?? `collection-${entry.index}`));
+  return [...collectionIds, ...homeLayoutRows(rows, platform).map((row) => row.id)];
+}
+
+// The saved order with anything that no longer exists dropped and anything new
+// appended, so a row added later still reaches Home.
+export function reconcileHomeOrder(order: string[] | null | undefined, collections: CollectionDoc[], rows: HomeRowDoc[], platform: string): string[] {
+  const fallback = defaultHomeOrder(collections, rows, platform);
+  const known = new Set(fallback);
+  const seen = new Set<string>();
+  const kept = (Array.isArray(order) ? order : [])
+    .map((id) => String(id))
+    .filter((id) => known.has(id) && !seen.has(id) && (seen.add(id), true));
+  for (const id of fallback) if (!seen.has(id)) kept.push(id);
+  return kept;
+}
+
+// The cards in a given order (ids that are not known are ignored, unknown ids
+// that are not in the list come last in their default order).
+export function homeLayoutItemsInOrder(collections: CollectionDoc[], rows: HomeRowDoc[], platform: string, order: string[]): HomeLayoutItem[] {
+  const collectionsById = new Map(homeLayoutCollections(collections, rows, platform).map((item) => [item.key, item]));
+  const rowsById = new Map(homeLayoutRowItems(rows, platform).map((item) => [item.key, item]));
+  const byId = new Map<string, HomeLayoutItem>([...collectionsById, ...rowsById]);
+  return reconcileHomeOrder(order, collections, rows, platform)
+    .map((id) => byId.get(id))
+    .filter((item): item is HomeLayoutItem => Boolean(item));
+}
+
+// One card moved to another place, as a new order.
+export function moveHomeOrder(order: string[], from: number, to: number): string[] {
+  if (from === to || from < 0 || to < 0 || from >= order.length || to >= order.length) return order;
+  const next = order.slice();
+  const [moved] = next.splice(from, 1);
+  if (moved === undefined) return order;
+  next.splice(to, 0, moved);
+  return next;
 }

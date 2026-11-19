@@ -44,6 +44,8 @@ export interface PartialDraft {
   formatting: FormattingDraft;
   posters: PostersDraft;
   homeRows: HomeRowDoc[];
+  // The person's own Home order from the layout sheet (doc ids), if they used it.
+  homeOrder?: string[];
   filterSets: FilterSetsDraft;
   mediaSets: MediaSetsDraft;
   meta: MetadataExtrasDraft;

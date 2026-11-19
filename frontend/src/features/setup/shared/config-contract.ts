@@ -160,6 +160,9 @@ export interface SetupConfigDraft {
   // Move In home rows (Step 6 builder). Rich rows, saved so the manifest
   // can advertise them in the user's order.
   collectionHomeRows?: HomeRowDoc[];
+  // The person's own Home order from the layout sheet (doc ids). Absent keeps
+  // collections leading Home.
+  homeOrder?: string[];
   // Set by Settle In / Move In saves: watchlist rows reach Nuvio Home only
   // when picked as Home rows. Older setups without it keep them on Home.
   watchlistHomeManaged?: boolean;
@@ -404,6 +407,9 @@ export function pruneConfig(draft: SetupConfigDraft): Record<string, unknown> {
   }
   if (draft.collectionHomeRows && draft.collectionHomeRows.length > 0) {
     out.collectionHomeRows = draft.collectionHomeRows;
+  }
+  if (draft.homeOrder && draft.homeOrder.length > 0) {
+    out.homeOrder = [...draft.homeOrder];
   }
   if (draft.watchlistHomeManaged === true) out.watchlistHomeManaged = true;
   if (draft.nuvioCollectionPacks && draft.nuvioCollectionPacks.length > 0) {

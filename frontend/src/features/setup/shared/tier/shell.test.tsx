@@ -14,7 +14,7 @@ const api = vi.hoisted(() => ({
 vi.mock('@/api/client', () => ({ apiClient: api }));
 
 const { TierShell, ShellSidebar } = await import('@/features/setup/shared/tier/TierShell');
-const { HomeLayoutBox, layoutGroupsInOrder } = await import('@/features/setup/shared/tier/HomeLayoutSheet');
+const { HomeLayoutBox } = await import('@/features/setup/shared/tier/HomeLayoutSheet');
 const model = await import('@/features/setup/shared/tier/shell-model');
 const layout = await import('@/features/setup/shared/home-layout');
 const { QuickSetupPage } = await import('@/features/setup/quick/QuickSetupPage');
@@ -205,15 +205,13 @@ describe('Home layout sheet', () => {
     expect(layout.homeLayoutCount(cols, rows, 'nuvio')).toBe(6);
   });
 
-  it('keeps collections above rows, with type chips and up/down buttons', () => {
-    const groups = layoutGroupsInOrder([
-      { id: 'rows', items: layout.homeLayoutRowItems(rows, 'nuvio'), onMove: () => {} },
-      { id: 'collections', items: layout.homeLayoutCollections(cols, rows, 'nuvio'), onMove: () => {} },
-    ]);
-    expect(groups.map((group) => group.id)).toEqual(['collections', 'rows']);
-    const html = renderToStaticMarkup(<HomeLayoutBox groups={groups} onClose={() => {}} />);
+  it('shows one list with type chips and up/down buttons', () => {
+    const order = layout.reconcileHomeOrder([], cols, rows, 'nuvio');
+    const items = layout.homeLayoutItemsInOrder(cols, rows, 'nuvio', order);
+    const html = renderToStaticMarkup(<HomeLayoutBox items={items} onMove={() => {}} onClose={() => {}} />);
     expect(html).toContain('Home layout');
     expect(html).toContain('Drag catalog rows and collections to set the order they appear on your Nuvio home screen.');
+    // Collections lead by default, then the rows, in one list.
     expect(html.indexOf('Streaming')).toBeLessThan(html.indexOf('My Movies'));
     expect(html).toContain('hl-chip is-collection');
     expect(html).toContain('hl-chip is-library');
@@ -221,5 +219,18 @@ describe('Home layout sheet', () => {
     expect(html).toContain('aria-label="Move Trending up"');
     expect(html).toContain('aria-label="Move Trending down"');
     expect(html).toContain('>Done</button>');
+    // No more "collections always above" note, and no group headings.
+    expect(html).not.toContain('Collections always sit above');
+    expect(html).not.toContain('hl-group-title');
+  });
+
+  it('lets a row sit above a collection once the person arranges it', () => {
+    const order = layout.reconcileHomeOrder([], cols, rows, 'nuvio');
+    const at = order.findIndex((id) => layout.homeLayoutItemsInOrder(cols, rows, 'nuvio', order).find((item) => item.key === id)?.title === 'My Movies');
+    expect(at).toBeGreaterThan(0);
+    const moved = layout.moveHomeOrder(order, at, 0);
+    const items = layout.homeLayoutItemsInOrder(cols, rows, 'nuvio', moved);
+    expect(items[0]?.title).toBe('My Movies');
+    expect(items.map((item) => item.kind).slice(0, 2)).toEqual(['library', 'collection']);
   });
 });

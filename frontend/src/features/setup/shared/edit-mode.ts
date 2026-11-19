@@ -39,6 +39,9 @@ export interface TierSnapshot {
   filterSets: FilterSetsDraft;
   mediaSets: MediaSetsDraft;
   homeRows: HomeRowDoc[];
+  // The person's own Home order (doc ids), when they arranged Home in the
+  // sheet. Absent = collections lead, then the Home rows.
+  homeOrder?: string[];
   collections: CollectionDoc[];
   packs: string[];
   addons: string[];
@@ -135,6 +138,7 @@ export function snapshotFromSaved(config: unknown, keys: Record<string, string>,
     filterSets: drafts.filterSets,
     mediaSets: drafts.mediaSets,
     homeRows: drafts.collectionHomeRows,
+    ...(drafts.homeOrder && drafts.homeOrder.length ? { homeOrder: drafts.homeOrder } : {}),
     collections: drafts.collections,
     packs: drafts.packs,
     addons: drafts.addons,
@@ -193,6 +197,8 @@ export function editSaveBody(input: {
     filtersTouched: !same(current.filterSets, saved.filterSets) || !same(current.mediaSets, saved.mediaSets),
     homeRows: current.homeRows,
     homeRowsTouched: !same(current.homeRows, saved.homeRows),
+    homeOrder: current.homeOrder ?? [],
+    homeOrderTouched: !same(current.homeOrder ?? [], saved.homeOrder ?? []),
     collections: current.collections,
     collectionsTouched: !same(current.collections, saved.collections) || !same(current.packs, saved.packs),
     packs: current.packs,
@@ -301,6 +307,7 @@ export function snapshotToFullDraft(snapshot: TierSnapshot): FullDraft {
     formatting: snapshot.formatting,
     posters: snapshot.posters,
     homeRows: snapshot.homeRows,
+    ...(snapshot.homeOrder ? { homeOrder: snapshot.homeOrder } : {}),
     ...customBadge(snapshot),
     collections: snapshot.collections,
     packs: snapshot.packs,

@@ -98,6 +98,7 @@ async function finishPendingPush(payload = {}) {
       collections: Array.isArray(config.collections) ? config.collections : [],
       homeRows: Array.isArray(config.collectionHomeRows) ? config.collectionHomeRows : [],
       sources: Array.isArray(config.collectionSources) ? config.collectionSources : [],
+      homeOrder: Array.isArray(config.homeOrder) ? config.homeOrder.filter((id: unknown) => typeof id === 'string') : [],
     },
     options: push.pushOptionsFromConfig(config),
     origin,
