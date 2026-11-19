@@ -580,6 +580,11 @@ Good to know:
 - **Using TorBox, Premiumize, AllDebrid or Real-Debrid?** Add that service
   directly instead of its WebDAV: it plays straight from the service and is
   faster.
+- **Running zurg, or rclone against Real-Debrid, for Jellyfin or Plex?** Keep
+  it for those apps, but do not point LeLibrary at the mount. The films are the
+  same ones in your Real-Debrid account, so add your Real-Debrid key instead:
+  LeLibrary reads that library directly, needs no mount, and sends the player
+  Real-Debrid's own links rather than a copy through this server.
 - The address, username and password are sealed like your other keys and are
   never shown again. To change them, type them again.
 
