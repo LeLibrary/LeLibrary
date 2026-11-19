@@ -561,6 +561,7 @@ Example addresses:
 
 | Server | Address |
 |---|---|
+| zurg (Real-Debrid) | `http://zurg:9999/` (its own port, 9999 unless changed) |
 | rclone `serve webdav` | `http://192.168.1.10:8080/` |
 | Nextcloud | `https://cloud.example.com/remote.php/dav/files/USERNAME/` (use an app password if you have two-factor login) |
 | Synology | `https://nas.local:5006/` |
@@ -584,7 +585,13 @@ Good to know:
   it for those apps, but do not point LeLibrary at the mount. The films are the
   same ones in your Real-Debrid account, so add your Real-Debrid key instead:
   LeLibrary reads that library directly, needs no mount, and sends the player
-  Real-Debrid's own links rather than a copy through this server.
+  Real-Debrid's own links rather than a copy through this server. Zurg's own
+  token is in its `config.yml` (`token:`), and it is the same private token as
+  [real-debrid.com/apitoken](https://real-debrid.com/apitoken).
+- **No Real-Debrid key, but a working zurg?** Then zurg's WebDAV address works
+  as a normal WebDAV server here (port 9999 by default), as long as the account
+  behind it is one you are allowed to read. It is slower than the key, because
+  playback goes through this server instead of Real-Debrid directly.
 - The address, username and password are sealed like your other keys and are
   never shown again. To change them, type them again.
 
