@@ -583,6 +583,54 @@ Good to know:
 - The address, username and password are sealed like your other keys and are
   never shown again. To change them, type them again.
 
+### AltMount (Usenet) as the library
+
+[AltMount](https://github.com/kipsilabs/altmount) is a WebDAV server backed by
+Usenet: add an NZB through its web interface or its SABnzbd-compatible API, and
+the files appear over WebDAV. Nothing extra is needed here, because it is a
+WebDAV server like the ones above. This is also the usual way off a debrid
+account onto Usenet while keeping Sonarr/Radarr.
+
+On the AltMount side:
+
+1. **Configuration > Import**: set **Import strategy** to `NONE`. The WebDAV
+   tree is then your library, laid out as categories (`movies`, `tv`, ...) with
+   one folder per release. `SYMLINK` and `STRM` write files on AltMount's own
+   disk for other apps; they do not change the WebDAV tree.
+2. **WebDAV login**: change the default `usenet` / `usenet` to your own username
+   and password (`webdav.user`, `webdav.password`). LeLibrary uses Basic login.
+3. Keep your Sonarr/Radarr pointing at AltMount's SABnzbd API. Your automation
+   does not change; LeLibrary only reads what it imports.
+
+On the LeLibrary side: `WEBDAV_SOURCE=on`, plus `WEBDAV_ALLOW_PRIVATE=on` when it
+is on your network, then fill in **Your own WebDAV server** with:
+
+| Setup | Address |
+|---|---|
+| Both containers on one Docker network | `http://altmount:8080/` |
+| AltMount on the host, LeLibrary in a container | `http://host.docker.internal:8080/` |
+| AltMount on another machine | `http://192.168.1.x:8080/` |
+
+What to expect:
+
+- **One title per release folder.** A season pack is one title with its episodes
+  inside, so the season and episode matching works like a debrid pack.
+- **Folder names do the matching.** AltMount names the folders after the release,
+  which is what LeLibrary parses; if a folder is renamed to something
+  unrecognisable, fix it on the Library page like any other mismatch.
+- **Archives**: AltMount unpacks RAR and 7z transparently, so the video files
+  inside are visible over WebDAV and are matched normally.
+- **Seeking goes through both servers.** LeLibrary fetches and passes the file
+  on, so a 4K seek costs one extra hop compared with a debrid source. On a busy
+  pool, AltMount's `streaming.max_prefetch` is the setting that helps most.
+- **The first scan of a large tree takes longer than a debrid listing**
+  (`PROPFIND` per folder, depth 8, up to 50,000 entries). Later scans are reused
+  for `WEBDAV_SCAN_MINUTES` (default 15).
+
+If it does not connect: `WEBDAV_ALLOW_PRIVATE=on` is the usual answer for a LAN
+address, and `http://` is only accepted for a private server, so use `https://`
+over the internet.
+
 ## Nuvio playback (Settle In and Move In only)
 
 Settle In and Move In include a **Nuvio playback** block in Setup >
