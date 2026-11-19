@@ -100,6 +100,45 @@ test('planning the Home order twice changes nothing, so a re-apply is safe', () 
     ['collection_collection-lelibrary-hub', 'collection_collection-mine', 'trending-movies-movie', 'torbox-movies']);
 });
 
+test('the setup\'s own Home order can put a row above a collection', () => {
+  const { planNuvioHomeItems } = require('../src/setup/push.ts');
+  const manifest = { id: 'community.lelibrary', catalogs: [{ type: 'movie', id: 'torbox-movies', showInHome: true }] };
+  const homeRows = [
+    {
+      id: 'row-import', title: 'Trending Movies', enabled: true, order: 0, customTitle: false,
+      source: { kind: 'catalog', id: 'trending-movies-movie', catalogId: 'trending-movies-movie', type: 'movie', addonId: 'com.mdblist.trending-movies', addonUrl: 'https://mdblist.com/manifest.json' },
+    },
+    {
+      id: 'row-own', title: 'My Movies', enabled: true, order: 1, customTitle: false,
+      source: { kind: 'catalog', id: 'torbox-movies', catalogId: 'torbox-movies', type: 'movie', addonId: '', addonUrl: '' },
+    },
+  ];
+  const collections = [{ id: 'collection-lelibrary-hub' }, { id: 'collection-mine' }];
+  const key = (item: Record<string, unknown>) => (item['is_collection'] ? `collection_${item['collection_id']}` : String(item['catalog_id']));
+
+  // The person dragged the imported row to the very top in Home layout.
+  const items = planNuvioHomeItems({
+    items: [],
+    manifest,
+    homeRows,
+    collections,
+    franchiseSlot: null,
+    homeOrder: ['row-import', 'collection-lelibrary-hub', 'row-own', 'collection-mine'],
+  });
+  assert.deepEqual(items.map(key), [
+    'trending-movies-movie', 'collection_collection-lelibrary-hub', 'torbox-movies', 'collection_collection-mine',
+  ]);
+
+  // Arranged again: the order holds, and a second apply changes nothing.
+  const again = planNuvioHomeItems({ items, manifest, homeRows, collections, franchiseSlot: null,
+    homeOrder: ['row-import', 'collection-lelibrary-hub', 'row-own', 'collection-mine'] });
+  assert.deepEqual(again, items);
+
+  // No saved order: collections still lead, exactly as before this change.
+  const untouched = planNuvioHomeItems({ items: [], manifest, homeRows, collections, franchiseSlot: null });
+  assert.deepEqual(untouched.map(key).slice(0, 2), ['collection_collection-lelibrary-hub', 'collection_collection-mine']);
+});
+
 test('a chosen nuvio profile that is gone fails instead of retargeting profile 1', () => {
   const profiles = [
     { profile_index: 1, name: 'Lewis', uses_primary_addons: true },

@@ -43,3 +43,23 @@ test('lead keys go above every row, even rows other addons hold above them', () 
   assert.deepEqual(layoutHomeKeys({ existingKeys, desired: ['ll:movies'], managed, lead }),
     ['collection_collection-lelibrary-x', 'collection_mine', 'other:a', 'll:movies']);
 });
+
+test('a saved Home order replaces the collections-first rule', () => {
+  const rows = [
+    { key: 'row:a', order: 0 },
+    { key: 'row:b', order: 1 },
+  ];
+  // No saved order: collections lead, then the rows.
+  assert.deepEqual(desiredHomeKeys({ rows, franchise: null, collectionKeys: ['collection_1'] }),
+    { lead: ['collection_1'], rows: ['row:a', 'row:b'] });
+  // Saved order: as given, rows mixed with collections, duplicates dropped.
+  assert.deepEqual(desiredHomeKeys({
+    rows,
+    franchise: null,
+    collectionKeys: ['collection_1'],
+    ordered: ['row:a', 'collection_1', 'row:b', 'collection_1'],
+  }), { lead: [], rows: ['row:a', 'collection_1', 'row:b'] });
+  // An empty or junk list falls back to the old behaviour, never a half order.
+  assert.deepEqual(desiredHomeKeys({ rows, franchise: null, collectionKeys: ['collection_1'], ordered: [] }),
+    { lead: ['collection_1'], rows: ['row:a', 'row:b'] });
+});
