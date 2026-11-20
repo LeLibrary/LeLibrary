@@ -82,7 +82,7 @@ export function WebdavCard({ enabled, values, onChange, onRemove, savedServices 
         {saved && <span className="pc-pill is-verified" aria-label="Key saved on the server">Saved</span>}
       </div>
       <div className="pc-body">
-        <label className="field">
+        <label className="setup-field">
           <span>Server address</span>
           <input
             type="url" inputMode="url" autoComplete="off" spellCheck={false}
@@ -90,7 +90,7 @@ export function WebdavCard({ enabled, values, onChange, onRemove, savedServices 
             value={values.webdavUrl ?? ''} onChange={(e) => set('webdavUrl', e.target.value)}
           />
         </label>
-        <label className="field">
+        <label className="setup-field">
           <span>Username</span>
           <input
             type="text" autoComplete="off" spellCheck={false}
