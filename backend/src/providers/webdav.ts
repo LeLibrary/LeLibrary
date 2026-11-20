@@ -54,6 +54,11 @@ function allowPrivate(env: Record<string, any> = process.env): boolean {
   return String(env.WEBDAV_ALLOW_PRIVATE || '').toLowerCase() === 'on';
 }
 
+function scanConcurrency(env: Record<string, any> = process.env): number {
+  const value = Number(env.WEBDAV_CONCURRENCY);
+  return Number.isFinite(value) && value > 0 ? Math.min(16, Math.max(1, Math.floor(value))) : SCAN_CONCURRENCY;
+}
+
 function scanTtlMs(env: Record<string, any> = process.env): number {
   const minutes = Number(env.WEBDAV_SCAN_MINUTES);
   return Math.max(5, Number.isFinite(minutes) && minutes > 0 ? minutes : 15) * 60 * 1000;
@@ -152,10 +157,11 @@ function parentOf(path: string): string {
 
 // Breadth-first, a few folders at a time. Only direct children of each folder
 // are used, so a server that ignores Depth still gives each file once.
-async function crawl(conn: DavConnection, { maxEntries, maxDepth }: { maxEntries: number; maxDepth: number }) {
+async function crawl(conn: DavConnection, { maxDepth, start, budget }: { maxDepth: number; start?: string; budget: { left: number } }) {
   const files: { path: string; size: number; modified: string | null }[] = [];
-  const queue: { path: string; depth: number }[] = [{ path: conn.basePath, depth: 0 }];
-  const seen = new Set<string>([conn.basePath]);
+  const root = start || conn.basePath;
+  const queue: { path: string; depth: number }[] = [{ path: root, depth: 0 }];
+  const seen = new Set<string>([root]);
   let total = 0;
   let failure: Error | null = null;
   const worker = async () => {
@@ -164,7 +170,8 @@ async function crawl(conn: DavConnection, { maxEntries, maxDepth }: { maxEntries
       let entries;
       try { entries = await propfind(conn, dir.path); } catch (err) { failure = err as Error; return; }
       total += entries.length;
-      if (total > maxEntries) { failure = davError('too-large'); return; }
+      budget.left -= entries.length;
+      if (budget.left < 0) { failure = davError('too-large'); return; }
       for (const entry of entries) {
         if (parentOf(entry.path) !== dir.path) continue;
         if (entry.isDir) {
@@ -259,23 +266,142 @@ function groupItems(files: { path: string; size: number; modified: string | null
   return items.sort((a, b) => a.id.localeCompare(b.id));
 }
 
+// Run `fn` over `items` a few at a time (the same shape as the crawler's own
+// worker pool, without importing library code into a provider).
+async function runPool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const item = items[next];
+      next += 1;
+      await fn(item as T);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
 const inFlight = new Map<string, Promise<WebdavItem[]>>();
 
+// How long a shallow listing may be reused. The engine asks every 30s for a
+// library someone is using, so this keeps a probe and the scan that follows it
+// from listing the same folders twice, without hiding a change for long.
+const SHALLOW_TTL_MS = 15_000;
+// A complete re-crawl this often, whatever the shallow listings say: the fold
+// level mtimes decide what is re-read in between, and this is the safety net if
+// a server does not move them.
+const FULL_RESCAN_MS = 30 * 60 * 1000;
+
+type DavEntry = { path: string; isDir: boolean; size: number; modified: string | null };
+type DavTree = { base: DavEntry[]; containers: string[]; children: Record<string, DavEntry[]> };
+type DavUnit = { sig: string; items: WebdavItem[] };
+
+function entrySig(entry: DavEntry): string {
+  return `${entry.isDir ? 'd' : 'f'}:${Number(entry.size) || 0}:${entry.modified || ''}`;
+}
+
+// One listing level in the base folder and one under each of its folders. For a
+// zurg/Usenet tree that is "every release folder" in a handful of requests: the
+// cheap question "is there anything new?" without walking into every release.
+async function shallowTree(conn: DavConnection, cache: { get: Function; set: Function }, now: number): Promise<DavTree> {
+  const key = `davshallow:${conn.cacheKey}`;
+  const hit = await Promise.resolve(cache.get(key)).catch(() => null);
+  if (hit && hit.tree && Number.isFinite(hit.at) && now - hit.at < SHALLOW_TTL_MS) return hit.tree as DavTree;
+  const listing = async (path: string) => (await propfind(conn, path)).filter((entry: DavEntry) => parentOf(entry.path) === path);
+  const base = await listing(conn.basePath) as DavEntry[];
+  const containers = base.filter((entry) => entry.isDir).map((entry) => entry.path);
+  const children: Record<string, DavEntry[]> = {};
+  for (const container of containers) children[container] = await listing(container) as DavEntry[];
+  const tree: DavTree = { base, containers, children };
+  await Promise.resolve(cache.set(key, { at: now, tree }, Math.ceil(SHALLOW_TTL_MS / 1000))).catch(() => {});
+  return tree;
+}
+
+// Everything the shallow listing can see, as one hash: a new release folder, a
+// removed one, or a folder whose own entry moved changes it.
+function treeSignature(tree: DavTree): string {
+  const parts: string[] = [];
+  for (const entry of tree.base) parts.push(`b|${entry.path}|${entrySig(entry)}`);
+  for (const container of tree.containers) {
+    for (const entry of tree.children[container] || []) parts.push(`c|${container}|${entry.path}|${entrySig(entry)}`);
+  }
+  return sha256(parts.sort().join('\n'));
+}
+
+// "Did anything change?" for a WebDAV server, without crawling it. Called by the
+// library engine's probe, so a new release is noticed on the next probe (30s for
+// a library someone is watching) instead of after the scan interval.
+async function probeWebdav(config: any, deps: { cache?: { get: Function; set: Function }; now?: () => number } = {}): Promise<{ sig: string } | null> {
+  if (!webdavEnabled()) return null;
+  const conn = davConnection(config);
+  if (!conn) return null;
+  try {
+    const tree = await shallowTree(conn, deps.cache || require('../runtime/cache.ts'), (deps.now || Date.now)());
+    return { sig: treeSignature(tree) };
+  } catch {
+    return null;
+  }
+}
+
 async function listWebdavLibrary(config: any, { fresh = false, deps = {} }: { fresh?: boolean; deps?: { cache?: { get: Function; set: Function }; now?: () => number; maxEntries?: number; maxDepth?: number } } = {}): Promise<WebdavItem[]> {
-  void fresh; // a finished scan is reused for the whole interval, even for a "fresh" sync
   if (!webdavEnabled()) throw davError('disabled');
   const conn = davConnection(config);
   if (!conn) throw davError('bad-url');
   const cache = deps.cache || require('../runtime/cache.ts');
   const now = deps.now || Date.now;
-  const hit = await Promise.resolve(cache.get(conn.cacheKey)).catch(() => null);
-  if (hit && Number.isFinite(hit.at) && now() - hit.at < scanTtlMs() && Array.isArray(hit.items)) return hit.items;
+  const previous: any = await Promise.resolve(cache.get(conn.cacheKey)).catch(() => null);
+  const tree = await shallowTree(conn, cache, now());
+  const sig = treeSignature(tree);
+  const units: Record<string, DavUnit> = previous && previous.units && Array.isArray(previous.items) ? previous.units : {};
+  const fullDue = !previous || !previous.units || !Array.isArray(previous.items)
+    || now() - (Number(previous.fullAt) || 0) > Math.max(FULL_RESCAN_MS, 2 * scanTtlMs());
+  // Nothing moved at all: keep the library, without listing into any release
+  // folder. `fresh` asks for a verified answer, and that is what this is.
+  if (!fullDue && previous.sig === sig) return previous.items as WebdavItem[];
   const running = inFlight.get(conn.cacheKey);
   if (running) return running;
   const scan = (async () => {
-    const files = await crawl(conn, { maxEntries: deps.maxEntries ?? SCAN_MAX_ENTRIES, maxDepth: deps.maxDepth ?? SCAN_MAX_DEPTH });
-    const items = groupItems(files, conn.basePath);
-    await Promise.resolve(cache.set(conn.cacheKey, { at: now(), items }, Math.ceil(scanTtlMs() / 1000))).catch(() => {});
+    // One budget for the whole scan: the shallow listing and every folder read
+    // after it share it, so a server that ignores Depth or a runaway tree still
+    // fails instead of returning half a library.
+    const budget = { left: deps.maxEntries ?? SCAN_MAX_ENTRIES };
+    budget.left -= tree.base.length;
+    for (const container of tree.containers) budget.left -= (tree.children[container] || []).length;
+    if (budget.left < 0) throw davError('too-large');
+    const nextUnits: Record<string, DavUnit> = {};
+    // Files loose in the base, or loose in a "Movies" style folder: one title
+    // each. These come straight from the shallow listing, so they are free.
+    const looseUnit = (dirPath: string, entries: DavEntry[]) => {
+      const files = entries.filter((entry) => !entry.isDir).map((entry) => ({ path: entry.path, size: entry.size, modified: entry.modified }));
+      const key = `loose:${dirPath}`;
+      const unitSig = sha256(files.map((file) => `${file.path}|${file.size}|${file.modified}`).sort().join('\n'));
+      const kept = units[key];
+      nextUnits[key] = kept && kept.sig === unitSig ? kept : { sig: unitSig, items: groupItems(files, conn.basePath) };
+    };
+    looseUnit(conn.basePath, tree.base);
+    for (const container of tree.containers) looseUnit(container, tree.children[container] || []);
+    // Every folder below a container (a release) is re-read only when its own
+    // entry moved; everything else is taken from the previous scan.
+    const pending: { key: string; path: string; sig: string }[] = [];
+    for (const container of tree.containers) {
+      for (const entry of tree.children[container] || []) {
+        if (!entry.isDir) continue;
+        const key = `dir:${entry.path}`;
+        const unitSig = entrySig(entry);
+        const kept = units[key];
+        if (kept && kept.sig === unitSig) { nextUnits[key] = kept; continue; }
+        pending.push({ key, path: entry.path, sig: unitSig });
+      }
+    }
+    await runPool(pending, scanConcurrency(), async (unit) => {
+      const files = await crawl(conn, { start: unit.path, maxDepth: deps.maxDepth ?? SCAN_MAX_DEPTH, budget });
+      nextUnits[unit.key] = { sig: unit.sig, items: groupItems(files, conn.basePath) };
+    });
+    const byId = new Map<string, WebdavItem>();
+    for (const unit of Object.values(nextUnits)) for (const item of unit.items) byId.set(item.id, item);
+    const items = [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+    await Promise.resolve(cache.set(conn.cacheKey, {
+      at: now(), sig, items, units: nextUnits, fullAt: fullDue ? now() : (Number(previous && previous.fullAt) || now()),
+    }, 7 * 24 * 60 * 60)).catch(() => {});
     return items;
   })();
   inFlight.set(conn.cacheKey, scan);
@@ -401,6 +527,7 @@ export interface WebdavApi {
   webdavEnabled: typeof webdavEnabled;
   allowPrivate: typeof allowPrivate;
   scanTtlMs: typeof scanTtlMs;
+  scanConcurrency: typeof scanConcurrency;
   davConnection: typeof davConnection;
   davRequest: typeof davRequest;
   fileRefToPath: typeof fileRefToPath;
@@ -408,9 +535,11 @@ export interface WebdavApi {
   getWebdavFiles: typeof getWebdavFiles;
   verifyWebdav: typeof verifyWebdav;
   proxyWebdavFile: typeof proxyWebdavFile;
+  probeWebdav: typeof probeWebdav;
+  treeSignature: typeof treeSignature;
 }
 
 module.exports = {
   SCAN_MAX_ENTRIES, SCAN_MAX_DEPTH, SCAN_CONCURRENCY, REQUEST_TIMEOUT_MS, MAX_LISTING_BYTES,
-  webdavEnabled, allowPrivate, scanTtlMs, davConnection, davRequest, fileRefToPath, listWebdavLibrary, getWebdavFiles, verifyWebdav, proxyWebdavFile,
+  webdavEnabled, allowPrivate, scanTtlMs, scanConcurrency, davConnection, davRequest, fileRefToPath, listWebdavLibrary, getWebdavFiles, verifyWebdav, proxyWebdavFile, probeWebdav, treeSignature,
 } satisfies WebdavApi;

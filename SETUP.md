@@ -571,9 +571,18 @@ Good to know:
 - **Playback goes through this LeLibrary server.** Players cannot send a
   WebDAV password, so LeLibrary fetches the file and passes it on, with
   seeking. It uses this server's bandwidth.
-- **New files show up within 15 minutes** (`WEBDAV_SCAN_MINUTES`). Each folder
-  that holds videos becomes one title; videos loose in a "Movies" style folder
-  are one title each.
+- **New files show up in about half a minute** while you are using the library.
+  LeLibrary asks the server for its folder list (never the contents), and reads
+  a folder only when it is new or has moved, so adding one film costs one
+  listing instead of re-reading the whole library. `LIBRARY_PROBE_INTERVAL`
+  controls how often that check runs for a library opened in the last hour
+  (seconds, default 30, minimum 10); a complete re-read happens every
+  `WEBDAV_SCAN_MINUTES` as a safety net (default 15, minimum 5).
+- Each folder that holds videos becomes one title; videos loose in a "Movies"
+  style folder are one title each.
+- **`WEBDAV_CONCURRENCY`** (default 3, up to 16) sets how many folders are read
+  at once. A local server like zurg copes with 8 and the first scan is much
+  quicker; raise it gently for a NAS.
 - **Plain `http://` is only accepted for servers on your own network.** Over
   the internet, use `https://`.
 - **Only Basic login is supported** (every server above uses it). Apache

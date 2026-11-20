@@ -94,6 +94,27 @@ test('a rejected provider key pauses the scope instead of retrying every tick', 
   assert.equal(probe.AUTH_PAUSE_MS, DAY);
 });
 
+test('a WebDAV library is probed by its shallow listing, not by a crawl', async () => {
+  process.env.WEBDAV_SOURCE = 'on';
+  try {
+    let sig = 'first';
+    const deps = { webdavSig: async () => ({ sig }) };
+    const rec = {
+      config: { provider: 'webdav', webdavUrl: 'http://192.168.1.5:9999/', webdavUser: 'u', webdavPassword: 'p' },
+    };
+    const first = await probe.probeScope(rec, deps);
+    assert.equal(first.changed, null, 'nothing to compare with on the first probe');
+    assert.equal(first.tokens.webdav, 'first');
+    rec.probeTokens = first.tokens;
+    assert.equal((await probe.probeScope(rec, deps)).changed, false, 'the same tree is unchanged');
+    sig = 'second';
+    assert.equal((await probe.probeScope(rec, deps)).changed, true, 'a new release moves it');
+    // A server that cannot be reached is unknown, never "unchanged".
+    deps.webdavSig = async () => null;
+    assert.equal((await probe.probeScope(rec, deps)).changed, null);
+  } finally { process.env.WEBDAV_SOURCE = ''; }
+});
+
 test('probeScope asks each provider; Real-Debrid compares with the last token', async () => {
   process.env.WEBDAV_SOURCE = '';
   const lists = { torrents: [row(2), row(1)], usenet: [], webdl: [] };

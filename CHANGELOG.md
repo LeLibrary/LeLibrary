@@ -36,4 +36,6 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ### Improvements
 
+- A WebDAV library (a NAS, or zurg and other Usenet servers) now notices new files in about half a minute while you are using it, instead of waiting for a full scan. Only the folder that changed is read, and an unchanged library is not read at all.
+
 - Added privacy-safe resource diagnostics to help identify memory pressure and background workload problems.

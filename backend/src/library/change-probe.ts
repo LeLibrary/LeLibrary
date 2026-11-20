@@ -114,6 +114,9 @@ const defaultDeps = {
   torboxPage: (key: string, family: string, params: { limit: number; offset: number }) => require('../providers/torbox.ts').torboxListPage(key, family, params),
   torboxCached: (key: string, family: string) => require('../providers/torbox.ts').torboxCachedListing(key, family),
   rdGet: (key: string, path: string, params?: Record<string, unknown>) => require('../providers/realdebrid.ts').realDebridProbeGet(key, path, params),
+  // A WebDAV library (zurg, a NAS) is asked for its shallow listing: the
+  // release folders one level down, never their contents.
+  webdavSig: (config: any) => require('../providers/webdav.ts').probeWebdav(config),
 };
 
 // One answer for a library: every active provider is asked. Real-Debrid
@@ -126,6 +129,13 @@ async function probeScope(rec: { config: any; probeTokens?: Record<string, strin
     if (id === 'torbox') {
       const key = rec.config.torboxApiKey;
       answers.push(await probeTorbox({ get: (family, params) => deps.torboxPage(key, family, params), cached: (family) => deps.torboxCached(key, family) }));
+    } else if (id === 'webdav') {
+      // A new release folder appears in the shallow listing, so a hash of it
+      // answers "anything new?" without crawling a single release.
+      const probe = await deps.webdavSig(rec.config || {});
+      const previous = rec.probeTokens && rec.probeTokens.webdav;
+      if (probe && probe.sig) tokens.webdav = probe.sig;
+      answers.push(probe && previous ? probe.sig !== previous : null);
     } else if (id === 'realdebrid') {
       const key = rec.config.rdApiKey;
       const token = await realDebridToken({ get: (path, params) => deps.rdGet(key, path, params) });

@@ -10,17 +10,30 @@ function createFakeWebdav({ files = {}, user = 'u', pass = 'p', ignoreDepth = fa
   const log = [];
   const closed = { count: 0 };
   const entries = new Map();
-  for (const [path, body] of Object.entries(files)) {
+  // Folder mtimes move when something inside them changes, the way a real
+  // filesystem does; the incremental scan relies on that.
+  const dirTimes = new Map();
+  let revision = 0;
+  const touch = (path) => {
+    const parts = String(path).split('/').filter(Boolean);
+    dirTimes.set('/', revision);
+    for (let i = 1; i <= parts.length; i++) dirTimes.set('/' + parts.slice(0, i).join('/') + '/', revision);
+  };
+  const put = (path, body) => {
     entries.set(path, typeof body === 'number' ? { size: body, body: null } : { size: body.length, body });
     const parts = path.split('/').filter(Boolean);
     for (let i = 1; i < parts.length; i++) entries.set('/' + parts.slice(0, i).join('/') + '/', { dir: true });
-  }
+    revision += 1;
+    touch(path);
+  };
+  for (const [path, body] of Object.entries(files)) put(path, body);
   entries.set('/', { dir: true });
   const children = (dir, deep) => [...entries.keys()].filter((p) => p !== dir && p.startsWith(dir)
     && (deep || !p.slice(dir.length).replace(/\/$/, '').includes('/')));
   const responseXml = (p) => {
     const e = entries.get(p);
-    const props = e.dir ? '<D:resourcetype><D:collection/></D:resourcetype>'
+    const props = e.dir
+      ? `<D:resourcetype><D:collection/></D:resourcetype><D:getlastmodified>Mon, 01 Sep 2026 10:00:${String(dirTimes.get(p.endsWith('/') ? p : p + '/') ?? 0).padStart(2, '0')} GMT</D:getlastmodified>`
       : `<D:resourcetype/><D:getcontentlength>${e.size}</D:getcontentlength><D:getlastmodified>Mon, 01 Sep 2026 10:00:00 GMT</D:getlastmodified>`;
     return `<D:response><D:href>${prefix}${encodePath(p)}</D:href><D:propstat><D:prop>${props}</D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>`;
   };
@@ -61,7 +74,12 @@ function createFakeWebdav({ files = {}, user = 'u', pass = 'p', ignoreDepth = fa
   });
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => {
     const url = `http://127.0.0.1:${server.address().port}${prefix}`;
-    resolve({ server, url, log, closed, close: () => new Promise((r) => { server.closeAllConnections?.(); server.close(() => r()); }) });
+    resolve({
+      server, url, log, closed,
+      add: (path, body) => put(path, body),
+      remove: (path) => { entries.delete(path); revision += 1; touch(path); },
+      close: () => new Promise((r) => { server.closeAllConnections?.(); server.close(() => r()); }),
+    });
   }));
 }
 
