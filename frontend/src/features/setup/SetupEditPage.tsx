@@ -31,7 +31,7 @@ import { ErrorState } from '@/features/site/ErrorPage';
 import { PublishPanel, publishActionFor } from '@/features/setup/shared/PublishPanel';
 import { RegenerateLink, type RegenerateLinkProps } from '@/features/setup/shared/RegenerateLink';
 import {
-  editSaveBody, emptySnapshot, snapshotFromSaved, stageConnectionChange, stagedPendingIds,
+  editSaveBody, emptySnapshot, savedServicesAfterRemoval, snapshotFromSaved, stageConnectionChange, stagedPendingIds,
   type EditMode, type TierId, type TierSnapshot,
 } from '@/features/setup/shared/edit-mode';
 import type { SetupKeysDraft } from '@/features/setup/shared/config-contract';
@@ -723,7 +723,9 @@ export function SetupEditPage() {
     nuvioCurrent,
     initial: seed ?? emptySnapshot(),
     dirty,
-    savedServices: summary.keyServices ?? [],
+    // Keys already queued for removal are not "saved" any more, so a card
+    // never asks to remove one twice (clearCount re-renders on a change).
+    savedServices: savedServicesAfterRemoval(summary.keyServices, clearKeys.current),
     identities,
     revealSaved: async (field) => {
       const token = getEditToken();

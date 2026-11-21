@@ -150,6 +150,18 @@ export function snapshotFromSaved(config: unknown, keys: Record<string, string>,
   };
 }
 
+// The saved keys a card should show as saved. A key the person has already
+// asked to remove stops counting straight away, even though the server only
+// drops it when the page is saved: otherwise the card keeps saying "Saved",
+// turning it off asks "Remove the key?" again, and the dialog never ends.
+export function savedServicesAfterRemoval(
+  savedServices: readonly string[] | null | undefined,
+  cleared: Iterable<string>,
+): string[] {
+  const removed = new Set(cleared);
+  return (savedServices ?? []).filter((field) => !removed.has(field));
+}
+
 export function emptySnapshot(): TierSnapshot {
   return snapshotFromSaved({}, {}, null);
 }

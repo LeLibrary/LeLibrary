@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSnapshotTracker, emptySnapshot, type TierSnapshot } from '@/features/setup/shared/edit-mode';
+import { createSnapshotTracker, emptySnapshot, savedServicesAfterRemoval, type TierSnapshot } from '@/features/setup/shared/edit-mode';
 
 // A section that counts how often it is serialized.
 function counted<T extends object>(value: T): { value: T; count: () => number } {
@@ -44,5 +44,23 @@ describe('useEditSnapshot change tracking', () => {
     expect(track(null)).toBe(true);
     expect(track(null)).toBe(false);
     expect(track(emptySnapshot())).toBe(true);
+  });
+});
+
+describe('removing a saved key', () => {
+  it('stops counting as saved the moment it is queued, so the dialog cannot repeat', () => {
+    const saved = ['torboxApiKey', 'tmdbApiKey', 'webdavUrl'];
+    expect(savedServicesAfterRemoval(saved, [])).toEqual(saved);
+    // Confirming the removal leaves the card showing neither "Saved" nor a
+    // switch that asks again.
+    expect(savedServicesAfterRemoval(saved, ['torboxApiKey'])).toEqual(['tmdbApiKey', 'webdavUrl']);
+    expect(savedServicesAfterRemoval(saved, new Set(['torboxApiKey', 'webdavUrl']))).toEqual(['tmdbApiKey']);
+    // Typing the key back in cancels the pending removal and it shows as saved.
+    const cleared = new Set(['torboxApiKey']);
+    cleared.delete('torboxApiKey');
+    expect(savedServicesAfterRemoval(saved, cleared)).toEqual(saved);
+    // Nothing saved yet: nothing to filter.
+    expect(savedServicesAfterRemoval(undefined, ['x'])).toEqual([]);
+    expect(savedServicesAfterRemoval(null, [])).toEqual([]);
   });
 });
