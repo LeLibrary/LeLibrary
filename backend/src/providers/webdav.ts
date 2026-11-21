@@ -300,6 +300,15 @@ function lastSegment(path: string): string {
   return parts[parts.length - 1] || '';
 }
 
+// The folders worth reading, in order: real categories first, then the `__all__`
+// mirror that fills in what they miss. Other `__...` folders are plumbing.
+function readableContainers(tree: DavTree): { path: string; name: string; mirror: boolean }[] {
+  const named = tree.containers.map((path) => ({ path, name: lastSegment(path) }));
+  const primary = named.filter((container) => !container.name.startsWith('__')).map((container) => ({ ...container, mirror: false }));
+  const mirrors = named.filter((container) => container.name === '__all__').map((container) => ({ ...container, mirror: true }));
+  return [...primary, ...mirrors];
+}
+
 function entrySig(entry: DavEntry): string {
   return `${entry.isDir ? 'd' : 'f'}:${Number(entry.size) || 0}:${entry.modified || ''}`;
 }
@@ -394,18 +403,15 @@ async function listWebdavLibrary(config: any, { fresh = false, deps = {} }: { fr
     // have, so nothing appears twice and the mirror's slow folders are skipped.
     // Other `__...` folders (unplayable, downloads, magic) are server plumbing,
     // never a library.
-    const named = tree.containers.map((path) => ({ path, name: lastSegment(path) }));
-    const primary = named.filter((container) => !container.name.startsWith('__'));
-    const mirrors = named.filter((container) => container.name === '__all__');
-    const readable = [...primary, ...mirrors];
+    const readable = readableContainers(tree);
     looseUnit(conn.basePath, tree.base);
-    for (const container of primary) looseUnit(container.path, tree.children[container.path] || []);
+    for (const container of readable.filter((entry) => !entry.mirror)) looseUnit(container.path, tree.children[container.path] || []);
     const alreadySeen = new Set<string>();
     // Every folder below a container (a release) is re-read only when its own
     // entry moved; everything else is taken from the previous scan.
     const pending: { key: string; path: string; sig: string }[] = [];
     for (const container of readable) {
-      const isMirror = container.name === '__all__';
+      const isMirror = container.mirror;
       for (const entry of tree.children[container.path] || []) {
         if (!entry.isDir) continue;
         const name = lastSegment(entry.path);
@@ -461,18 +467,39 @@ async function getWebdavFiles(_config: any, item: any): Promise<DavFile[]> {
   return Array.isArray(item && item.files) ? item.files : [];
 }
 
-async function verifyWebdav({ url, user, password }: { url?: string; user?: string; password?: string }): Promise<{ valid: boolean; error?: DavErrorCode; folders?: number; videos?: number }> {
+// "Does this address work, and is there a library behind it?" Counts what the
+// scan would read: the release folders (categories first, the mirror only for
+// names no category has) and any video sitting loose in a category folder. A
+// server laid out as categories/releases has nothing at the top level, so
+// counting only the top level used to answer "0 videos in 6 folders".
+async function verifyWebdav(
+  { url, user, password }: { url?: string; user?: string; password?: string },
+  deps: { cache?: { get: Function; set: Function }; now?: () => number } = {},
+): Promise<{ valid: boolean; error?: DavErrorCode; folders?: number; videos?: number }> {
   if (!webdavEnabled()) return { valid: false, error: 'disabled' };
   const conn = davConnection({ webdavUrl: url, webdavUser: user, webdavPassword: password });
   if (!conn) return { valid: false, error: 'bad-url' };
   try {
-    const entries = await propfind(conn, conn.basePath);
-    const direct = entries.filter((entry: any) => parentOf(entry.path) === conn.basePath);
-    return {
-      valid: true,
-      folders: direct.filter((entry: any) => entry.isDir).length,
-      videos: direct.filter((entry: any) => !entry.isDir && VIDEO_RE.test(entry.path)).length,
-    };
+    const tree = await shallowTree(conn, deps.cache || require('../runtime/cache.ts'), (deps.now || Date.now)());
+    const containers = readableContainers(tree);
+    const seen = new Set<string>();
+    let folders = 0;
+    for (const container of containers) {
+      for (const entry of tree.children[container.path] || []) {
+        if (!entry.isDir) continue;
+        const name = lastSegment(entry.path);
+        // The mirror only counts releases no category has, so the number here
+        // matches the number of titles the scan will look at.
+        if (container.mirror && seen.has(name)) continue;
+        if (!container.mirror) seen.add(name);
+        folders += 1;
+      }
+    }
+    let videos = tree.base.filter((entry) => !entry.isDir && VIDEO_RE.test(entry.path)).length;
+    for (const container of containers.filter((entry) => !entry.mirror)) {
+      videos += (tree.children[container.path] || []).filter((entry) => !entry.isDir && VIDEO_RE.test(entry.path)).length;
+    }
+    return { valid: true, folders, videos };
   } catch (err: any) {
     return { valid: false, error: requestError(err).code };
   }

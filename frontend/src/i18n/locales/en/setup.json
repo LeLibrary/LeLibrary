@@ -1166,7 +1166,6 @@
     "The username or password was not accepted.": "The username or password was not accepted.",
     "This address did not answer as a WebDAV server.": "This address did not answer as a WebDAV server.",
     "The server took too long to answer.": "The server took too long to answer.",
-    "Connected: {{videos}} videos in {{folders}} folders.": "Connected: {{videos}} videos in {{folders}} folders.",
     "Add a TMDB key to this setup to fix matches.": "Add a TMDB key to this setup to fix matches.",
     "Anyone with this setup's id can open this page. Set a password in the setup settings to keep your file names private.": "Anyone with this setup's id can open this page. Set a password in the setup settings to keep your file names private.",
     "Change this match": "Change this match",
@@ -2004,6 +2003,10 @@
     "Copied": "Copied",
     "The code could not be copied. Select it and copy it by hand.": "The code could not be copied. Select it and copy it by hand.",
     "Paste it on the Releases page. It works once, for ten minutes. That browser can then keep this list and show what you already hold; it never gets your install link, and Unlink stops it from here.": "Paste it on the Releases page. It works once, for ten minutes. That browser can then keep this list and show what you already hold; it never gets your install link, and Unlink stops it from here.",
-    "Home order": "Home order"
+    "Home order": "Home order",
+    "Connected: {{folders}} folders to scan.": "Connected: {{folders}} folders to scan.",
+    "Connected: {{folders}} folders and {{videos}} videos at the top.": "Connected: {{folders}} folders and {{videos}} videos at the top.",
+    "Connected: {{videos}} videos.": "Connected: {{videos}} videos.",
+    "Connected, but no videos were found in it. Check the address points at the library folder.": "Connected, but no videos were found in it. Check the address points at the library folder."
   }
 }

@@ -33,7 +33,7 @@ describe('WebDAV connection check', () => {
     const post = async (path: string, body: unknown) => { calls.push([path, body]); return { valid: true, folders: 2, videos: 5 }; };
     const result = await checkWebdav({ webdavUrl: ' http://nas:8080/ ', webdavUser: 'me', webdavPassword: 'pw' }, post);
     expect(calls).toEqual([['/api/verify/webdav', { url: 'http://nas:8080/', user: 'me', password: 'pw' }]]);
-    expect(result).toEqual({ ok: true, message: 'Connected: 5 videos in 2 folders.' });
+    expect(result).toEqual({ ok: true, message: 'Connected: 2 folders and 5 videos at the top.' });
   });
 
   it('turns error codes into plain messages', async () => {
@@ -44,6 +44,19 @@ describe('WebDAV connection check', () => {
     expect(webdavErrorMessage('something-new')).toBe('LeLibrary could not reach this server.');
     expect(webdavErrorMessage('insecure-http')).toBe('Use https:// for a server outside your own network, so the password is not sent in clear text.');
     expect(webdavErrorMessage('too-large')).toBe('This WebDAV folder is too big to read in one go. Point the address at a smaller folder.');
+  });
+
+  it('reports folders to scan when the videos are one level down (zurg, categories)', async () => {
+    const post = async () => ({ valid: true, folders: 1461, videos: 0 });
+    const result = await checkWebdav({ webdavUrl: 'http://10.0.0.9:19999/dav/' }, post);
+    expect(result).toEqual({ ok: true, message: 'Connected: 1,461 folders to scan.' });
+  });
+
+  it('says plainly when a server has no videos at all', async () => {
+    const post = async () => ({ valid: true, folders: 0, videos: 0 });
+    const result = await checkWebdav({ webdavUrl: 'http://nas/empty/' }, post);
+    expect(result.ok).toBe(true);
+    expect(result.message).toContain('no videos were found');
   });
 
   it('needs an address before checking', async () => {

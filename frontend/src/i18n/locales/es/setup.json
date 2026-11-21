@@ -1166,7 +1166,6 @@
     "The username or password was not accepted.": "El usuario o la contraseña no se aceptaron.",
     "This address did not answer as a WebDAV server.": "Esta dirección no respondió como un servidor WebDAV.",
     "The server took too long to answer.": "El servidor tardó demasiado en responder.",
-    "Connected: {{videos}} videos in {{folders}} folders.": "Conectado: {{videos}} vídeos en {{folders}} carpetas.",
     "Add a TMDB key to this setup to fix matches.": "Añade una clave de TMDB a esta configuración para corregir coincidencias.",
     "Anyone with this setup's id can open this page. Set a password in the setup settings to keep your file names private.": "Cualquiera con el id de esta configuración puede abrir esta página. Pon una contraseña en los ajustes de la configuración para mantener privados los nombres de tus archivos.",
     "Change this match": "Cambiar esta coincidencia",
@@ -2004,6 +2003,10 @@
     "Copied": "Copiado",
     "The code could not be copied. Select it and copy it by hand.": "No se pudo copiar el código. Selecciónalo y cópialo a mano.",
     "Paste it on the Releases page. It works once, for ten minutes. That browser can then keep this list and show what you already hold; it never gets your install link, and Unlink stops it from here.": "Pégalo en la página de estrenos. Funciona una vez, durante diez minutos. Ese navegador podrá guardar esta lista y mostrarte lo que ya tienes; nunca recibe tu enlace de instalación, y puedes desvincularlo desde aquí.",
-    "Home order": "Orden de Inicio"
+    "Home order": "Orden de Inicio",
+    "Connected: {{folders}} folders to scan.": "Conectado: {{folders}} carpetas por analizar.",
+    "Connected: {{folders}} folders and {{videos}} videos at the top.": "Conectado: {{folders}} carpetas y {{videos}} vídeos en el nivel superior.",
+    "Connected: {{videos}} videos.": "Conectado: {{videos}} vídeos.",
+    "Connected, but no videos were found in it. Check the address points at the library folder.": "Conectado, pero no se encontraron vídeos. Comprueba que la dirección apunta a la carpeta de la biblioteca."
   }
 }

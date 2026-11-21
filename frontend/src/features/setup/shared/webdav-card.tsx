@@ -39,7 +39,23 @@ export async function checkWebdav(values: WebdavFields, post: Post): Promise<{ o
   if (!reply.valid) return { ok: false, message: webdavErrorMessage(reply.error) };
   const videos = Number(reply.videos) || 0;
   const folders = Number(reply.folders) || 0;
-  return { ok: true, message: setupCopy('Connected: {{videos}} videos in {{folders}} folders.', `Connected: ${videos} videos in ${folders} folders.`, { videos, folders }) };
+  // Say what the scan will actually read. A library laid out as
+  // categories/releases has no video at the top level at all, so "0 videos"
+  // would be true and useless; the folder count is the honest answer.
+  const count = (value: number) => new Intl.NumberFormat().format(value);
+  if (folders > 0 && videos > 0) {
+    return {
+      ok: true,
+      message: setupCopy('Connected: {{folders}} folders and {{videos}} videos at the top.', `Connected: ${count(folders)} folders and ${count(videos)} videos at the top.`, { folders: count(folders), videos: count(videos) }),
+    };
+  }
+  if (folders > 0) {
+    return { ok: true, message: setupCopy('Connected: {{folders}} folders to scan.', `Connected: ${count(folders)} folders to scan.`, { folders: count(folders) }) };
+  }
+  if (videos > 0) {
+    return { ok: true, message: setupCopy('Connected: {{videos}} videos.', `Connected: ${count(videos)} videos.`, { videos: count(videos) }) };
+  }
+  return { ok: true, message: setupCopy('Connected, but no videos were found in it. Check the address points at the library folder.', 'Connected, but no videos were found in it. Check the address points at the library folder.') };
 }
 
 const WEBDAV_FIELDS = ['webdavUrl', 'webdavUser', 'webdavPassword'] as const;
