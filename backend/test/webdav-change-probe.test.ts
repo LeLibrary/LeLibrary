@@ -128,3 +128,32 @@ test('the probe is null, not an empty answer, when the server is unreachable', a
   const probe = await webdav.probeWebdav({ webdavUrl: url, webdavUser: 'u', webdavPassword: 'p' }, { cache: memoryCache() });
   assert.equal(probe, null);
 });
+
+test('a server that mirrors everything into __all__ is read once, not twice', async () => {
+  // zurg's layout: real categories plus a __all__ mirror of everything, and
+  // server plumbing in other __ folders.
+  const dav = await createFakeWebdav({
+    files: {
+      '/movies/Heat (1995)/Heat.1995.mkv': GB,
+      '/shows/Breaking Bad/Season 1/Breaking.Bad.S01E01.mkv': GB,
+      '/__all__/Heat (1995)/Heat.1995.mkv': GB,
+      '/__all__/Breaking Bad/Season 1/Breaking.Bad.S01E01.mkv': GB,
+      '/__all__/Unfiled Film (2020)/Unfiled.2020.mkv': GB,
+      '/__magic__/Some View/Some.View.mkv': GB,
+      '/__unplayable__/Broken/Broken.mkv': GB,
+    },
+  });
+  try {
+    const items = await webdav.listWebdavLibrary(config(dav), { deps: { cache: memoryCache(), now: clock().now } });
+    const names = items.map((i) => i.name).sort();
+    // Heat and Breaking Bad come from their categories; the mirror only adds
+    // the release no category has. Plumbing folders contribute nothing.
+    assert.deepEqual(names, ['Breaking Bad Season 1', 'Heat (1995)', 'Unfiled Film (2020)']);
+    assert.equal(new Set(items.map((i) => i.id)).size, items.length, 'no duplicate titles');
+    // The mirror's duplicate of Heat was not read.
+    const read = dav.log.filter((r) => r.method === 'PROPFIND').map((r) => decodeURIComponent(r.url));
+    assert.ok(read.some((url) => /__all__\/Unfiled/.test(url)), 'the mirror fills in what categories miss');
+    assert.ok(!read.some((url) => /__all__\/Heat/.test(url)), 'the mirror does not re-read a release a category has');
+    assert.ok(!read.some((url) => /__magic__\/Some 5|__magic__\/Some%20View|__unplayable__/.test(url)), 'plumbing is never read');
+  } finally { await dav.close(); }
+});

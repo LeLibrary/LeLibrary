@@ -295,6 +295,11 @@ type DavEntry = { path: string; isDir: boolean; size: number; modified: string |
 type DavTree = { base: DavEntry[]; containers: string[]; children: Record<string, DavEntry[]> };
 type DavUnit = { sig: string; items: WebdavItem[] };
 
+function lastSegment(path: string): string {
+  const parts = String(path).split('/').filter(Boolean);
+  return parts[parts.length - 1] || '';
+}
+
 function entrySig(entry: DavEntry): string {
   return `${entry.isDir ? 'd' : 'f'}:${Number(entry.size) || 0}:${entry.modified || ''}`;
 }
@@ -308,7 +313,13 @@ async function shallowTree(conn: DavConnection, cache: { get: Function; set: Fun
   if (hit && hit.tree && Number.isFinite(hit.at) && now - hit.at < SHALLOW_TTL_MS) return hit.tree as DavTree;
   const listing = async (path: string) => (await propfind(conn, path)).filter((entry: DavEntry) => parentOf(entry.path) === path);
   const base = await listing(conn.basePath) as DavEntry[];
-  const containers = base.filter((entry) => entry.isDir).map((entry) => entry.path);
+  // Server plumbing (`__unplayable__`, `__downloads__`, `__magic__`, ...) is
+  // never a library and is never read, so it is not listed either: only real
+  // folders and the `__all__` mirror count.
+  const containers = base
+    .filter((entry) => entry.isDir)
+    .map((entry) => entry.path)
+    .filter((path) => !lastSegment(path).startsWith('__') || lastSegment(path) === '__all__');
   const children: Record<string, DavEntry[]> = {};
   for (const container of containers) children[container] = await listing(container) as DavEntry[];
   const tree: DavTree = { base, containers, children };
@@ -365,7 +376,6 @@ async function listWebdavLibrary(config: any, { fresh = false, deps = {} }: { fr
     // fails instead of returning half a library.
     const budget = { left: deps.maxEntries ?? SCAN_MAX_ENTRIES };
     budget.left -= tree.base.length;
-    for (const container of tree.containers) budget.left -= (tree.children[container] || []).length;
     if (budget.left < 0) throw davError('too-large');
     const nextUnits: Record<string, DavUnit> = {};
     // Files loose in the base, or loose in a "Movies" style folder: one title
@@ -377,14 +387,32 @@ async function listWebdavLibrary(config: any, { fresh = false, deps = {} }: { fr
       const kept = units[key];
       nextUnits[key] = kept && kept.sig === unitSig ? kept : { sig: unitSig, items: groupItems(files, conn.basePath) };
     };
+    // Which containers to read, and in what order. A server can expose the same
+    // releases twice: zurg serves every category (movies, shows) and also a
+    // `__all__` mirror of everything, and that mirror is the slow one. Real
+    // folders are read first and the mirror only fills in what they do not
+    // have, so nothing appears twice and the mirror's slow folders are skipped.
+    // Other `__...` folders (unplayable, downloads, magic) are server plumbing,
+    // never a library.
+    const named = tree.containers.map((path) => ({ path, name: lastSegment(path) }));
+    const primary = named.filter((container) => !container.name.startsWith('__'));
+    const mirrors = named.filter((container) => container.name === '__all__');
+    const readable = [...primary, ...mirrors];
     looseUnit(conn.basePath, tree.base);
-    for (const container of tree.containers) looseUnit(container, tree.children[container] || []);
+    for (const container of primary) looseUnit(container.path, tree.children[container.path] || []);
+    const alreadySeen = new Set<string>();
     // Every folder below a container (a release) is re-read only when its own
     // entry moved; everything else is taken from the previous scan.
     const pending: { key: string; path: string; sig: string }[] = [];
-    for (const container of tree.containers) {
-      for (const entry of tree.children[container] || []) {
+    for (const container of readable) {
+      const isMirror = container.name === '__all__';
+      for (const entry of tree.children[container.path] || []) {
         if (!entry.isDir) continue;
+        const name = lastSegment(entry.path);
+        // The mirror only contributes releases the categories do not already
+        // show. Categories are never de-duplicated against each other.
+        if (isMirror && alreadySeen.has(name)) continue;
+        if (!isMirror) alreadySeen.add(name);
         const key = `dir:${entry.path}`;
         const unitSig = entrySig(entry);
         const kept = units[key];
@@ -392,10 +420,30 @@ async function listWebdavLibrary(config: any, { fresh = false, deps = {} }: { fr
         pending.push({ key, path: entry.path, sig: unitSig });
       }
     }
+    // One unreadable folder must not freeze the whole library: a server can
+    // answer a broken release with an error for ever. A folder that was read
+    // before keeps its previous result; a new one is left out. A scatter of
+    // failures (or a refused login) is still a failed scan, so a server having a
+    // bad day can never be mistaken for a library that lost titles.
+    let failed = 0;
     await runPool(pending, scanConcurrency(), async (unit) => {
-      const files = await crawl(conn, { start: unit.path, maxDepth: deps.maxDepth ?? SCAN_MAX_DEPTH, budget });
-      nextUnits[unit.key] = { sig: unit.sig, items: groupItems(files, conn.basePath) };
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const files = await crawl(conn, { start: unit.path, maxDepth: deps.maxDepth ?? SCAN_MAX_DEPTH, budget });
+          nextUnits[unit.key] = { sig: unit.sig, items: groupItems(files, conn.basePath) };
+          return;
+        } catch (err: any) {
+          // A refused login or an exhausted entry budget is a failed scan, not
+          // one broken folder: never turn either into a smaller library.
+          if (err && (err.code === 'auth' || err.code === 'too-large')) throw err;
+          if (attempt === 0) continue;
+          failed += 1;
+          const kept = units[unit.key];
+          if (kept) nextUnits[unit.key] = kept;
+        }
+      }
     });
+    if (failed > 0 && failed > Math.max(3, Math.ceil(pending.length * 0.1))) throw davError('unreachable');
     const byId = new Map<string, WebdavItem>();
     for (const unit of Object.values(nextUnits)) for (const item of unit.items) byId.set(item.id, item);
     const items = [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));

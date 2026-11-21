@@ -583,6 +583,9 @@ Good to know:
 - **`WEBDAV_CONCURRENCY`** (default 3, up to 16) sets how many folders are read
   at once. A local server like zurg copes with 8 and the first scan is much
   quicker; raise it gently for a NAS.
+- **Servers that show everything twice** (zurg also exposes a `__all__` folder
+  mirroring every category) are read once: the real folders come first and the
+  mirror only adds what they miss, so no title appears twice.
 - **Plain `http://` is only accepted for servers on your own network.** Over
   the internet, use `https://`.
 - **Only Basic login is supported** (every server above uses it). Apache
